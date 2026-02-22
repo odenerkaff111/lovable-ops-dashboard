@@ -1,0 +1,13 @@
+project_id = "aahzounzettyugovalio"
+
+[functions.activity]
+verify_jwt = false
+
+[functions.agendamento]
+verify_jwt = false
+
+[functions.call-status]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = true

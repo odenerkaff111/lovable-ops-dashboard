@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light theme tokens */
+    --background: 0 0% 100%;
+    --foreground: 222 10% 12%;
+
+    --card: 210 16% 98%;
+    --card-foreground: 222 10% 12%;
+
+    --popover: 210 16% 100%;
+    --popover-foreground: 222 10% 12%;
+
+    --primary: 220 90% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 16% 96%;
+    --secondary-foreground: 222 10% 12%;
+
+    --muted: 210 16% 94%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 45 95% 45%;
+    --accent-foreground: 222 10% 12%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 150 60% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 40 95% 55%;
+    --warning-foreground: 222 10% 12%;
+
+    --danger: 0 72% 55%;
+    --danger-foreground: 0 0% 100%;
+
+    --border: 220 10% 92%;
+    --input: 220 10% 98%;
+    --ring: 220 90% 45%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 10% 12%;
+    --sidebar-primary: 220 90% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 16% 96%;
+    --sidebar-accent-foreground: 222 10% 12%;
+    --sidebar-border: 220 10% 92%;
+    --sidebar-ring: 220 90% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl;
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px hsl(150 60% 45% / 0.15);
+  }
+
+  .glow-amber {
+    box-shadow: 0 0 20px hsl(40 95% 55% / 0.15);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 20px hsl(0 72% 55% / 0.15);
+  }
+
+  .gradient-mesh {
+    background: 
+      radial-gradient(at 20% 20%, hsl(160 70% 45% / 0.08) 0%, transparent 50%),
+      radial-gradient(at 80% 80%, hsl(45 95% 55% / 0.05) 0%, transparent 50%),
+      hsl(var(--background));
+  }
+}
