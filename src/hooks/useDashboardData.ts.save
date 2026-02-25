@@ -1,23 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
-
-export type PeriodFilter = "today" | "week" | "month" | "custom";
-
-interface ActivityCount {
-  user_id: string;
-  action_type: string;
-  count: number;
-}
-
-interface Appointment {
-  id: string;
-  lead_id: string;
-  lead_name: string;
-  scheduled_date: string;
-  user_id: string;
-  status: "pendente" | "realizada" | "no_show" | "venda_realizada" | "venda_nao_realizada";
-  created_at: string;
+ created_at: string;
 }
 
 interface Profile {
@@ -120,17 +101,36 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
           if (stats[act.action_type] !== undefined) {
             stats[act.action_type]++;
           } else {
-            stats[act.action_type] = 1; 
+            stats[act.action_type] = 1; // Para outros tipos como follow_up
           }
         }
       });
 
-      // 2. Extrair dados REAIS (Sem Cascata)
-      const realCounts: ActivityCount[] = [];
+      // 2. Aplicar Lógica de Cascata (Acumulativa)
+      const cumulativeCounts: ActivityCount[] = [];
+
       userStats.forEach((stats, userId) => {
-        Object.entries(stats).forEach(([action, count]) => {
-          realCounts.push({ user_id: userId, action_type: action, count });
-        });
+        // A ordem de baixo para cima no funil:
+        const v = stats.venda_realizada || 0;
+        const q = stats.qualificacao || 0;
+        const e = stats.lead_engajado || 0;
+        const pc = stats.primeiro_contato || 0;
+        const lc = stats.lead_criado || 0;
+
+        // Soma cumulativa (cada etapa inclui todas as etapas abaixo dela)
+        const totalQualificacao = q + v;
+        const totalEngajado = e + totalQualificacao;
+        const totalPrimeiroContato = pc + totalEngajado;
+        const totalLeadCriado = lc + totalPrimeiroContato;
+
+        cumulativeCounts.push({ user_id: userId, action_type: "venda_realizada", count: v });
+        cumulativeCounts.push({ user_id: userId, action_type: "qualificacao", count: totalQualificacao });
+        cumulativeCounts.push({ user_id: userId, action_type: "lead_engajado", count: totalEngajado });
+        cumulativeCounts.push({ user_id: userId, action_type: "primeiro_contato", count: totalPrimeiroContato });
+        cumulativeCounts.push({ user_id: userId, action_type: "lead_criado", count: totalLeadCriado });
+        
+        // Follow-up não é funil, então permanece contagem real
+        cumulativeCounts.push({ user_id: userId, action_type: "follow_up", count: stats.follow_up || 0 });
       });
 
       const processedGoals = (goalsRes.data ?? []).map((goal: any) => ({
@@ -138,7 +138,7 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         period_goal: goal.daily_goal * daysInPeriod
       }));
 
-      setActivities(realCounts); // Agora envia APENAS o volume real
+      setActivities(cumulativeCounts);
       setAppointments(rawAppointments);
       setProfiles((profilesRes.data ?? []) as Profile[]);
       setGoals(processedGoals as UserGoal[]);

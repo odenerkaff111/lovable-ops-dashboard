@@ -5,17 +5,19 @@ import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { StatCard } from "@/components/dashboard/StatCard";
 import AppointmentCardInteractive from "@/components/dashboard/AppointmentCardInteractive";
 import SalesFunnel from "@/components/dashboard/SalesFunnel";
-import { 
-  Users, 
-  Target, 
-  Phone, 
-  PhoneOff, 
-  TrendingUp, 
-  CalendarCheck, 
-  BarChart3, 
+import {
+  Users,
+  Target,
+  Phone,
+  PhoneOff,
+  TrendingUp,
+  CalendarCheck,
+  BarChart3,
   Rocket,
   Award,
-  LayoutDashboard
+  LayoutDashboard,
+  MessageSquare,
+  DollarSign
 } from "lucide-react";
 import { isToday } from "date-fns";
 import Sidebar from "@/components/layout/Sidebar";
@@ -27,84 +29,98 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<PeriodType>("month");
   const { activities, appointments, profiles, goals, taskTypes, loading } = useDashboardData(period);
 
-  const periodMultiplier = useMemo(() => {
-    if (period === "week") return 7;
-    if (period === "month") return 30;
-    return 1;
-  }, [period]);
-
   const stats = useMemo(() => {
+    // Agora o totalByType pega os dados puros que o novo useDashboardData manda
     const totalByType = (type: string) =>
       activities.filter((a) => a.action_type === type).reduce((sum, a) => sum + a.count, 0);
 
-    const totalLeads = totalByType("lead_criado");
-    const totalEngaged = totalByType("lead_engajado");
-    const totalFollowUp = totalByType("follow_up");
-    const totalQualificacao = totalByType("qualificacao");
+    // ==========================================
+    // 1. DADOS REAIS DO PERÍODO (Esforço isolado)
+    // ==========================================
+    const realLeadsCreated = totalByType("lead_criado");
+    const realFirstContact = totalByType("primeiro_contato");
+    const realEngaged = totalByType("lead_engajado");
+    const realFollowUp = totalByType("follow_up");
+    const realQualificacao = totalByType("qualificacao");
 
     const getGoalTotal = (taskName: string) => {
       const taskType = taskTypes.find(t => t.name === taskName);
       if (!taskType) return 0;
-      const sumDailyGoals = goals.filter(g => g.task_type_id === taskType.id).reduce((sum, g) => sum + g.daily_goal, 0);
-      return sumDailyGoals * periodMultiplier;
+      return goals
+        .filter(g => g.task_type_id === taskType.id)
+        .reduce((sum, g) => sum + (g.period_goal || g.daily_goal), 0);
     };
 
     const goalLeads = getGoalTotal("lead_criado");
     const goalEngaged = getGoalTotal("lead_engajado");
     const goalFollow = getGoalTotal("follow_up");
 
-    const doneAppointments = appointments.filter((a) => a.status !== "pendente");
-    const noShows = appointments.filter((a) => a.status === "no_show");
-    const sales = appointments.filter((a) => a.status === "venda_realizada");
+    // ==========================================
+    // 2. ESTADO REAL DO FUNIL (Pipeline Acumulado)
+    // ==========================================
+    const totalVenda = appointments.filter(a => a.status === "venda_realizada").length;
+    const totalRealizada = appointments.filter(a => a.status !== "pendente").length;
+    const totalAgendada = appointments.length;
+
+    // Regra do Funil: A soma sobe em cascata para preencher as etapas visuais
+    const totalQualificacaoFunnel = realQualificacao + totalAgendada;
+    const totalEngajadoFunnel = realEngaged + totalQualificacaoFunnel;
+    const totalPrimeiroContatoFunnel = realFirstContact + totalEngajadoFunnel;
+    const totalLeadsFunnel = realLeadsCreated + totalPrimeiroContatoFunnel; 
 
     return {
-      totalLeads, 
-      pctLeads: goalLeads > 0 ? Math.round((totalLeads / goalLeads) * 100) : 0,
-      totalEngaged, 
-      pctEngaged: goalEngaged > 0 ? Math.round((totalEngaged / goalEngaged) * 100) : 0,
-      totalFollowUp, 
-      pctFollow: goalFollow > 0 ? Math.round((totalFollowUp / goalFollow) * 100) : 0,
-      totalQualificacao,
+      // --- OBJETIVOS DO TIME ---
+      pctLeads: goalLeads > 0 ? Math.round((realLeadsCreated / goalLeads) * 100) : 0,
+      pctEngaged: goalEngaged > 0 ? Math.round((realEngaged / goalEngaged) * 100) : (totalEngajadoFunnel > 0 ? 100 : 0),
+      pctFollow: goalFollow > 0 ? Math.round((realFollowUp / goalFollow) * 100) : 0,
+
+      // --- VOLUME DE OPERAÇÃO ---
+      totalLeadsTrabalhados: totalLeadsFunnel, // Total em andamento (Cascata)
+      totalFirstContactReal: realFirstContact, // Volume puro de contatos
+      totalEngagedReal: realEngaged, // Volume puro de engajados
+      totalAgendado: totalAgendada,
+
+      // --- DADOS RESTAURADOS: CONVERSÃO E CALLS ---
       todayCallsScheduled: appointments.filter((a) => isToday(new Date(a.scheduled_date))).length,
-      callsDone: doneAppointments.length,
-      pendingAppointments: appointments.filter((a) => a.status === "pendente").length,
-      noShowRate: doneAppointments.length > 0 ? Math.round((noShows.length / doneAppointments.length) * 100) : 0,
-      conversionRate: doneAppointments.length > 0 ? Math.round((sales.length / doneAppointments.length) * 100) : 0,
+      callsDone: totalRealizada,
+      noShowRate: totalRealizada > 0 ? Math.round((appointments.filter(a => a.status === "no_show").length / totalRealizada) * 100) : 0,
+      conversionRate: totalRealizada > 0 ? Math.round((totalVenda / totalRealizada) * 100) : 0,
+
+      // --- FUNIL LATERAL ---
       funnelData: {
-        leads: totalLeads,
-        preCall: totalEngaged,
-        qualificacao: totalQualificacao,
-        agendada: appointments.length,
-        realizada: doneAppointments.length,
-        venda: sales.length
+        leads: totalLeadsFunnel,
+        primeiroContato: totalPrimeiroContatoFunnel,
+        engajada: totalEngajadoFunnel,
+        qualificacao: totalQualificacaoFunnel,
+        agendada: totalAgendada,
+        realizada: totalRealizada,
+        venda: totalVenda
       }
     };
-  }, [activities, appointments, goals, taskTypes, periodMultiplier]);
+  }, [activities, appointments, goals, taskTypes]);
 
   const userPerformances = useMemo(() => {
-    return profiles
-      .filter(p => p.active === true)
-      .map((p) => {
-        const userGoals = goals.filter((g) => g.user_id === p.id);
-        const tasks = userGoals.map((g) => {
-          const tt = taskTypes.find((t) => t.id === g.task_type_id);
-          const act = activities.find((a) => a.user_id === p.id && a.action_type === tt?.name);
-          
-          let label = tt?.name || "?";
-          if (label === 'lead_criado') label = 'Criação';
-          if (label === 'lead_engajado') label = 'Engajamento';
-          if (label === 'follow_up') label = 'Follow';
+    return profiles.filter(p => p.active === true).map((p) => {
+      const userGoals = goals.filter((g) => g.user_id === p.id);
+      const tasks = userGoals.map((g) => {
+        const tt = taskTypes.find((t) => t.id === g.task_type_id);
+        const act = activities.find((a) => a.user_id === p.id && a.action_type === tt?.name);
 
-          return {
-            label,
-            current: act?.count ?? 0,
-            goal: (g.daily_goal || 0) * periodMultiplier,
-          };
-        }).filter(task => task.goal > 0);
-        
-        return { profile: p, tasks };
-      }).filter(u => u.tasks.length > 0);
-  }, [profiles, goals, taskTypes, activities, periodMultiplier]);
+        let label = tt?.name || "?";
+        if (label === 'lead_criado') label = 'Criação';
+        if (label === 'primeiro_contato') label = '1º Contato';
+        if (label === 'lead_engajado') label = 'Engajamento';
+        if (label === 'follow_up') label = 'Follow';
+
+        return {
+          label,
+          current: act?.count ?? 0,
+          goal: g.period_goal || g.daily_goal,
+        };
+      }).filter(task => task.goal > 0);
+      return { profile: p, tasks };
+    }).filter(u => u.tasks.length > 0);
+  }, [profiles, goals, taskTypes, activities]);
 
   const profileMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -112,10 +128,10 @@ export default function Dashboard() {
     return map;
   }, [profiles]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center font-display animate-pulse text-primary italic">Sincronizando Comando Central...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center font-display animate-pulse text-primary italic text-xl text-foreground">Sincronizando Comando Central...</div>;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden text-foreground">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
         <header className="border-b border-border/40 bg-card/50 backdrop-blur-md sticky top-0 z-50 p-4">
@@ -128,13 +144,12 @@ export default function Dashboard() {
         </header>
 
         <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
-          
           <aside className="w-full lg:w-[280px] shrink-0">
             <SalesFunnel data={stats.funnelData} />
           </aside>
 
           <div className="flex-1 space-y-10">
-            
+            {/* OBJETIVOS DO TIME */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-primary">
                 <Rocket className="w-5 h-5" />
@@ -151,103 +166,63 @@ export default function Dashboard() {
                       <span className="text-xs font-bold text-muted-foreground uppercase">{m.label}</span>
                       <span className={`text-2xl font-black ${m.color}`}>{m.pct}%</span>
                     </div>
-                    <div className="space-y-2">
-                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-1000 ${m.bar} shadow-[0_0_10px_rgba(0,0,0,0.1)]`} 
-                          style={{ width: `${Math.min(m.pct, 100)}%` }}
-                        />
-                      </div>
+                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                      <div className={`h-full transition-all duration-1000 ${m.bar}`} style={{ width: `${Math.min(m.pct, 100)}%` }} />
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
+            {/* VOLUME DE OPERAÇÃO */}
             <section className="space-y-4">
               <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <BarChart3 className="w-4 h-4" /> Volume de Operação
               </h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Leads Criados" value={stats.totalLeads} icon={Users} />
-                <StatCard label="Leads Engajados" value={stats.totalEngaged} icon={Target} />
-                <StatCard label="Follow Ups" value={stats.totalFollowUp} icon={TrendingUp} />
-                <StatCard label="Agendado" value={stats.pendingAppointments} icon={CalendarCheck} />
+                <StatCard label="Leads Totais" value={stats.totalLeadsTrabalhados} icon={Users} />
+                <StatCard label="1º Contato" value={stats.totalFirstContactReal} icon={MessageSquare} />
+                <StatCard label="Engajados" value={stats.totalEngagedReal} icon={Target} />
+                <StatCard label="Agendado" value={stats.totalAgendado} icon={CalendarCheck} />
               </div>
             </section>
 
+            {/* PERFORMANCE POR GUERREIRO */}
             <section className="space-y-4">
               <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Award className="w-4 h-4" /> Performance do Time
+                <Award className="w-4 h-4" /> Performance por Guerreiro
               </h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {userPerformances.map(({ profile: p, tasks }) => (
                   <div key={p.id} className="glass-card p-6 border-border/40 hover:border-primary/30 transition-all group shadow-xl relative overflow-hidden">
-                    {p.role?.toLowerCase() === 'admin' && (
-                      <div className="absolute top-0 left-0 w-1.5 h-full bg-primary shadow-[2px_0_10px_rgba(var(--primary),0.3)]" />
-                    )}
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shadow-inner">
-                          <span className="text-primary font-black text-lg">
-                            {p.full_name ? p.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "UN"}
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="font-display font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
-                            {p.full_name}
-                            {p.role?.toLowerCase() === 'admin' && <Rocket className="w-3.5 h-3.5 text-primary animate-pulse" />}
-                          </h3>
-                          <Badge variant="outline" className="text-[10px] h-4 uppercase bg-secondary/30 border-none text-muted-foreground font-bold">
-                            {p.role || "Membro"}
-                          </Badge>
-                        </div>
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <span className="text-primary font-black text-lg">{p.full_name?.charAt(0).toUpperCase()}</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter">Em Operação</span>
+                      <div>
+                        <h3 className="font-display font-bold">{p.full_name}</h3>
+                        <Badge variant="outline" className="text-[10px] h-4 uppercase">{p.role || "Membro"}</Badge>
                       </div>
                     </div>
                     <div className="space-y-5">
-                      {tasks.map((task) => {
-                        const taskPct = Math.round((task.current / task.goal) * 100);
-                        return (
-                          <div key={task.label} className="space-y-2">
-                            <div className="flex justify-between items-end">
-                              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-tight">{task.label}</span>
-                              <span className="text-xs font-black text-foreground">
-                                {task.current} <span className="text-muted-foreground font-medium">/ {task.goal}</span>
-                              </span>
-                            </div>
-                            <div className="relative h-2 w-full bg-secondary/50 rounded-full overflow-hidden">
-                              <div 
-                                className={cn(
-                                  "h-full rounded-full transition-all duration-1000 ease-out",
-                                  taskPct >= 100 ? "bg-emerald-500" : "bg-primary"
-                                )}
-                                style={{ width: `${Math.min(taskPct, 100)}%` }}
-                              />
-                            </div>
-                            <div className="flex justify-between items-center">
-                               <span className="text-[9px] text-muted-foreground italic font-medium">
-                                  {taskPct >= 100 ? "Meta atingida! 🏆" : `${Math.max(0, task.goal - task.current)} para o objetivo`}
-                               </span>
-                               <span className={cn(
-                                 "text-[10px] font-black px-2 py-0.5 rounded",
-                                 taskPct >= 100 ? "text-white bg-emerald-500" : "text-primary bg-primary/10"
-                               )}>
-                                 {taskPct}%
-                               </span>
-                            </div>
+                      {tasks.map((task) => (
+                        <div key={task.label} className="space-y-2">
+                          <div className="flex justify-between items-end">
+                            <span className="text-[11px] font-bold text-muted-foreground uppercase">{task.label}</span>
+                            <span className="text-xs font-black">{task.current} / {task.goal}</span>
                           </div>
-                        );
-                      })}
+                          <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden">
+                            <div className={cn("h-full transition-all duration-1000", (task.current / task.goal) >= 1 ? "bg-emerald-500" : "bg-primary")} style={{ width: `${Math.min((task.current / task.goal) * 100, 100)}%` }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
+            {/* SEÇÃO RESTAURADA: CONVERSÃO E CALLS */}
             <section className="space-y-4">
               <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <Phone className="w-4 h-4" /> Conversão e Calls
@@ -260,6 +235,7 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* SEÇÃO RESTAURADA: PRÓXIMAS CALLS AGENDADAS */}
             <section className="space-y-4 pb-12">
               <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                 <CalendarCheck className="w-4 h-4" /> Próximas Calls
@@ -278,6 +254,7 @@ export default function Dashboard() {
                 {appointments.length === 0 && <p className="text-xs text-muted-foreground italic col-span-full text-center py-8 glass-card">Nenhuma call registrada.</p>}
               </div>
             </section>
+
           </div>
         </div>
       </main>
