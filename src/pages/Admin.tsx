@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Target, Trash2, X, ShieldCheck, Loader2, Rocket, DollarSign } from "lucide-react"; 
+import { UserPlus, Trash2, X, Loader2 } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,7 +31,6 @@ interface UserGoal {
   daily_goal: number;
 }
 
-// NOVO: Interface para as Metas Globais
 interface CompanyGoals {
   id: string;
   revenue_goal: number;
@@ -56,11 +55,10 @@ export default function Admin() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [goals, setGoals] = useState<UserGoal[]>([]);
-  const [companyGoals, setCompanyGoals] = useState<CompanyGoals | null>(null); // NOVO: Estado das metas da empresa
+  const [companyGoals, setCompanyGoals] = useState<CompanyGoals | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Estados para novo usuário
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [newFunction, setNewFunction] = useState("sdr");
@@ -79,7 +77,7 @@ export default function Admin() {
       supabase.from("profiles").select("*").order("full_name", { ascending: true }),
       supabase.from("task_types").select("*"),
       supabase.from("user_goals").select("*"),
-      supabase.from("company_goals").select("*").limit(1).maybeSingle(), // NOVO: Busca metas globais
+      supabase.from("company_goals").select("*").limit(1).maybeSingle(),
     ]);
 
     setProfiles((pRes.data ?? []) as Profile[]);
@@ -88,7 +86,6 @@ export default function Admin() {
     if (cRes.data) setCompanyGoals(cRes.data as CompanyGoals);
   }
 
-  // Função para criar usuário
   async function createUser() {
     if (!newEmail || !newName || !newPassword) {
       toast({ title: "Erro", description: "Preencha os campos obrigatórios.", variant: "destructive" });
@@ -114,7 +111,7 @@ export default function Admin() {
         toast({ title: "Usuário criado!", description: "O acesso já está ativo." });
         setNewEmail(""); setNewName(""); setNewPassword("");
         setShowCreateForm(false);
-        fetchData(); 
+        fetchData();
       }
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -123,7 +120,6 @@ export default function Admin() {
     }
   }
 
-  // Salva metas individuais
   async function handleSaveGoal(userId: string, taskTypeId: string, val: string) {
     const value = parseInt(val) || 0;
     const existing = goals.find((g) => g.user_id === userId && g.task_type_id === taskTypeId);
@@ -139,14 +135,11 @@ export default function Admin() {
     fetchData();
   }
 
-  // NOVO: Salva metas globais da empresa
   async function handleSaveCompanyGoal(field: keyof CompanyGoals, val: string) {
     if (!companyGoals?.id) return;
     const value = parseFloat(val) || 0;
-    
-    if (companyGoals[field] === value) return; // Não faz nada se não mudou
+    if (companyGoals[field] === value) return;
 
-    // Atualização otimista na tela
     setCompanyGoals(prev => prev ? { ...prev, [field]: value } : null);
 
     const { error } = await supabase
@@ -155,10 +148,10 @@ export default function Admin() {
       .eq("id", companyGoals.id);
 
     if (error) {
-      toast({ title: "Erro", description: "Falha ao salvar a meta da empresa.", variant: "destructive" });
-      fetchData(); // Recarrega do banco se der erro
+      toast({ title: "Erro", description: "Falha ao salvar a meta.", variant: "destructive" });
+      fetchData();
     } else {
-      toast({ title: "Meta global atualizada com sucesso!" });
+      toast({ title: "Meta atualizada!" });
     }
   }
 
@@ -172,157 +165,130 @@ export default function Admin() {
   if (!isAdmin) return null;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden">
       <Sidebar />
 
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
+        <div className="max-w-6xl mx-auto p-8 space-y-6">
 
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <ShieldCheck className="w-8 h-8 text-primary" />
-              <h1 className="text-3xl font-display font-bold">Painel Admin</h1>
-            </div>
-            <Button
-              onClick={() => setShowCreateForm(!showCreateForm)}
-              variant={showCreateForm ? "outline" : "default"}
-              className="gap-2 shadow-lg shadow-primary/20"
-            >
-              {showCreateForm ? <X className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-              {showCreateForm ? "Cancelar" : "Novo Usuário"}
-            </Button>
-          </div>
-
+          {/* FORMULÁRIO DE CRIAÇÃO (SÓ APARECE AO CLICAR NO BOTÃO) */}
           {showCreateForm && (
-            <section className="glass-card p-6 border-primary/20 animate-in fade-in slide-in-from-top-4">
+            <section className="bg-white p-6 rounded-md border border-blue-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Novo Acesso</h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)}><X className="w-4 h-4" /></Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold tracking-wider">Nome</Label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} className="bg-background" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Nome</Label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} className="h-9 text-sm" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold tracking-wider">Email</Label>
-                  <Input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="bg-background" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Email</Label>
+                  <Input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="h-9 text-sm" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold tracking-wider">Senha</Label>
-                  <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="bg-background" />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Senha</Label>
+                  <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="h-9 text-sm" />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase font-bold tracking-wider">Função</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Função</Label>
                   <Select value={newFunction} onValueChange={setNewFunction}>
-                    <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {functionOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-              <Button onClick={createUser} disabled={creating} className="mt-6 w-full md:w-auto px-12">
-                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {creating ? "Salvando..." : "Confirmar Cadastro"}
+              <Button onClick={createUser} disabled={creating} className="mt-4 bg-slate-800 hover:bg-slate-700 text-xs h-9 px-8">
+                {creating ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : "Confirmar Cadastro"}
               </Button>
             </section>
           )}
 
-          {/* NOVO: SEÇÃO DE METAS DA EMPRESA */}
+          {/* METAS GLOBAIS DA EMPRESA */}
           {companyGoals && (
-            <section className="glass-card border-emerald-500/20 overflow-hidden shadow-xl mb-6">
-              <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/20">
-                <h2 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-emerald-600">
-                  <Rocket className="w-4 h-4" /> Metas Globais da Empresa
-                </h2>
+            <section className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Metas Globais da Empresa</h2>
               </div>
               
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                    <DollarSign className="w-3 h-3 text-emerald-500" /> Faturamento (Mês)
-                  </Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Faturamento (Mês)</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">R$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">R$</span>
                     <Input 
                       type="number" 
-                      className="pl-9 bg-background font-bold text-lg"
+                      className="pl-9 h-10 font-bold text-slate-800"
                       defaultValue={companyGoals.revenue_goal} 
                       onBlur={(e) => handleSaveCompanyGoal('revenue_goal', e.target.value)} 
                     />
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Vendas (Mês)</Label>
-                  <Input 
-                    type="number" 
-                    className="bg-background font-bold text-lg"
-                    defaultValue={companyGoals.sales_goal} 
-                    onBlur={(e) => handleSaveCompanyGoal('sales_goal', e.target.value)} 
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Vendas (Mês)</Label>
+                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.sales_goal} onBlur={(e) => handleSaveCompanyGoal('sales_goal', e.target.value)} />
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Agendamentos (Dia)</Label>
-                  <Input 
-                    type="number" 
-                    className="bg-background font-bold text-lg"
-                    defaultValue={companyGoals.daily_appointments_goal} 
-                    onBlur={(e) => handleSaveCompanyGoal('daily_appointments_goal', e.target.value)} 
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Agendamentos (Dia)</Label>
+                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.daily_appointments_goal} onBlur={(e) => handleSaveCompanyGoal('daily_appointments_goal', e.target.value)} />
                 </div>
-
-                <div className="space-y-2">
-                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Conversas (Dia)</Label>
-                  <Input 
-                    type="number" 
-                    className="bg-background font-bold text-lg"
-                    defaultValue={companyGoals.daily_conversations_goal} 
-                    onBlur={(e) => handleSaveCompanyGoal('daily_conversations_goal', e.target.value)} 
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase font-bold text-slate-500">Conversas (Dia)</Label>
+                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.daily_conversations_goal} onBlur={(e) => handleSaveCompanyGoal('daily_conversations_goal', e.target.value)} />
                 </div>
               </div>
             </section>
           )}
 
-          <section className="glass-card border-border/40 overflow-hidden shadow-2xl">
-            <div className="p-4 bg-secondary/20 border-b border-border/40">
-              <h2 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary" /> Matriz de Performance Individual
-              </h2>
+          {/* EQUIPE (MATRIZ INDIVIDUAL) */}
+          <section className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Equipe</h2>
+              <Button 
+                onClick={() => setShowCreateForm(true)} 
+                variant="outline" 
+                size="sm" 
+                className="h-8 text-[10px] font-bold uppercase gap-2 border-slate-300"
+              >
+                <UserPlus className="w-3 h-3" /> Novo Usuário
+              </Button>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-secondary/10 text-muted-foreground text-[10px] uppercase font-bold">
+                  <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase font-bold border-b border-gray-100">
                     <th className="px-6 py-4 text-left">Colaborador</th>
                     <th className="px-6 py-4 text-center">Status</th>
                     <th className="px-6 py-4 text-center">Metas Diárias</th>
                     <th className="px-6 py-4 text-right">Ação</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/40">
+                <tbody className="divide-y divide-gray-100">
                   {profiles.map((p) => (
-                    <tr key={p.id} className="hover:bg-primary/5 transition-colors">
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">
-                        <div className="font-bold text-foreground">{p.full_name}</div>
-                        <div className="text-[10px] text-muted-foreground">{p.email}</div>
-                        <Badge variant="outline" className="mt-1 text-[9px] h-4 uppercase">{p.role}</Badge>
+                        <div className="font-bold text-slate-800">{p.full_name}</div>
+                        <div className="text-[10px] text-slate-400 uppercase font-medium">{p.role}</div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Badge variant={p.active ? "default" : "secondary"} className="h-5">
+                        <Badge variant={p.active ? "default" : "secondary"} className="h-5 text-[9px] uppercase font-bold bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-50">
                           {p.active ? "Ativo" : "Inativo"}
                         </Badge>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex justify-center gap-4">
+                        <div className="flex justify-center gap-6">
                           {taskTypes.map((tt) => {
                             const goal = goals.find(g => g.user_id === p.id && g.task_type_id === tt.id);
                             return (
                               <div key={tt.id} className="flex flex-col items-center gap-1">
-                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{getTaskLabel(tt.name)}</span>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">{getTaskLabel(tt.name)}</span>
                                 <Input
                                   type="number"
-                                  className="h-8 w-16 text-center text-xs bg-background/50"
+                                  className="h-8 w-14 text-center text-xs border-gray-200 focus:border-blue-400"
                                   defaultValue={goal?.daily_goal || ""}
                                   onBlur={(e) => handleSaveGoal(p.id, tt.id, e.target.value)}
                                 />
@@ -332,7 +298,7 @@ export default function Admin() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                        <Button variant="ghost" size="icon" className="text-slate-300 hover:text-red-500 transition-colors">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </td>

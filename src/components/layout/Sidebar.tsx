@@ -1,77 +1,130 @@
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Target, ShieldCheck, LogOut } from "lucide-react";
+import { LayoutDashboard, Target, ShieldCheck, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils"; // Utilizando o utilitário padrão do projeto
 
 export default function Sidebar() {
   const { isAdmin, profile } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
 
   return (
-    <aside className="w-64 h-screen hidden md:block border-r border-border/40 bg-card/30 backdrop-blur-md sticky top-0 left-0 overflow-y-auto">
-      <nav className="flex flex-col h-full p-6">
-        {/* Header da Sidebar */}
-        <div className="mb-8 px-2">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-primary/70">Kaff CRM</h3>
-          <div className="mt-2">
-            <div className="text-sm font-semibold text-foreground truncate">{profile?.full_name ?? "Usuário"}</div>
-            <div className="text-[10px] text-muted-foreground uppercase">{profile?.role ?? "Player"}</div>
+    <aside
+      className={cn(
+        "h-screen hidden md:flex flex-col border-r border-gray-200 bg-white transition-all duration-300 sticky top-0 left-0 z-50",
+        isCollapsed ? "w-20" : "w-64"
+      )}
+    >
+      <nav className="flex flex-col h-full py-6 px-3">
+
+        {/* Header da Sidebar (Nome do Sistema e Toggle) */}
+        <div className={cn("flex items-center mb-8", isCollapsed ? "justify-center" : "justify-between px-2")}>
+          {!isCollapsed && (
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
+              Kyra
+            </h3>
+          )}
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            title={isCollapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Info do Usuário (Oculta quando recolhido para ganhar espaço) */}
+        <div className={cn("mb-6 px-2 transition-all duration-200", isCollapsed ? "opacity-0 h-0 overflow-hidden" : "opacity-100 mb-6")}>
+          <div className="text-sm font-semibold text-slate-800 truncate">
+            {profile?.full_name ?? "Usuário"}
+          </div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider font-medium">
+            {profile?.role ?? "Player"}
           </div>
         </div>
 
-        <ul className="space-y-2 flex-1">
+        {/* Links de Navegação */}
+        <ul className="space-y-1.5 flex-1">
           <li>
-            <NavLink to="/" className={({ isActive }) => 
-              cn("flex items-center gap-3 px-3 py-2 rounded-lg transition-all", 
-              isActive ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-secondary text-muted-foreground hover:text-foreground')
-            }>
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="text-sm font-medium">Dashboard</span>
+            <NavLink
+              to="/"
+              title="Dashboard"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center rounded-md transition-all duration-200",
+                  isCollapsed ? "justify-center py-3" : "px-3 py-2.5 gap-3",
+                  isActive
+                    ? "bg-slate-100 text-blue-600 font-semibold"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium"
+                )
+              }
+            >
+              <LayoutDashboard className={cn("shrink-0", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
+              {!isCollapsed && <span className="text-sm">Dashboard</span>}
             </NavLink>
           </li>
-          
+
           <li>
-            <NavLink to="/me" className={({ isActive }) => 
-              cn("flex items-center gap-3 px-3 py-2 rounded-lg transition-all", 
-              isActive ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-secondary text-muted-foreground hover:text-foreground')
-            }>
-              <Target className="w-4 h-4" />
-              <span className="text-sm font-medium">Minhas Metas</span>
+            <NavLink
+              to="/me"
+              title="Minhas Metas"
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center rounded-md transition-all duration-200",
+                  isCollapsed ? "justify-center py-3" : "px-3 py-2.5 gap-3",
+                  isActive
+                    ? "bg-slate-100 text-blue-600 font-semibold"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium"
+                )
+              }
+            >
+              <Target className={cn("shrink-0", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
+              {!isCollapsed && <span className="text-sm">Minhas Metas</span>}
             </NavLink>
           </li>
 
           {isAdmin && (
             <li>
-              <NavLink to="/admin" className={({ isActive }) => 
-                cn("flex items-center gap-3 px-3 py-2 rounded-lg transition-all", 
-                isActive ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-secondary text-muted-foreground hover:text-foreground')
-              }>
-                <ShieldCheck className="w-4 h-4" />
-                <span className="text-sm font-medium">Painel Admin</span>
+              <NavLink
+                to="/admin"
+                title="Painel Admin"
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center rounded-md transition-all duration-200",
+                    isCollapsed ? "justify-center py-3" : "px-3 py-2.5 gap-3",
+                    isActive
+                      ? "bg-slate-100 text-blue-600 font-semibold"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 font-medium"
+                  )
+                }
+              >
+                <ShieldCheck className={cn("shrink-0", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
+                {!isCollapsed && <span className="text-sm">Painel Admin</span>}
               </NavLink>
             </li>
           )}
         </ul>
 
         {/* Footer da Sidebar com Logout */}
-        <div className="pt-4 mt-4 border-t border-border/40">
-          <button 
+        <div className="pt-4 mt-4 border-t border-gray-100">
+          <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all text-sm font-medium"
+            title="Sair do Sistema"
+            className={cn(
+              "flex items-center text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all rounded-md font-medium",
+              isCollapsed ? "justify-center py-3 w-full" : "px-3 py-2.5 gap-3 w-full text-sm"
+            )}
           >
-            <LogOut className="w-4 h-4" />
-            Sair do Sistema
+            <LogOut className={cn("shrink-0", isCollapsed ? "w-5 h-5" : "w-4 h-4")} />
+            {!isCollapsed && <span>Sair do Sistema</span>}
           </button>
         </div>
       </nav>
     </aside>
   );
-}
-
-// Função auxiliar para classes (se não tiver importado, pode usar string simples)
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(' ');
 }

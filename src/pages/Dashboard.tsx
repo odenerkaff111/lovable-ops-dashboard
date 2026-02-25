@@ -12,12 +12,8 @@ import {
   PhoneOff,
   TrendingUp,
   CalendarCheck,
-  BarChart3,
-  Rocket,
-  Award,
   LayoutDashboard,
-  MessageSquare,
-  DollarSign
+  MessageSquare
 } from "lucide-react";
 import { isToday } from "date-fns";
 import Sidebar from "@/components/layout/Sidebar";
@@ -27,8 +23,8 @@ import { cn } from "@/lib/utils";
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const [period, setPeriod] = useState<PeriodType>("month");
-  
-  // NOVO: Desestruturando o companyGoals (Metas Globais) que configuramos no hook
+
+  // Desestruturando o companyGoals (Metas Globais) que configuramos no hook
   const { activities, appointments, profiles, goals, taskTypes, companyGoals, loading } = useDashboardData(period);
 
   const stats = useMemo(() => {
@@ -52,8 +48,7 @@ export default function Dashboard() {
     const totalRealizada = appointments.filter(a => a.status !== "pendente").length;
     const totalAgendada = appointments.length;
 
-    // NOVO: Cálculo de Faturamento Real
-    // Soma a coluna 'revenue_received' de todas as calls marcadas como "venda_realizada"
+    // Cálculo de Faturamento Real
     const totalRevenue = appointments
       .filter(a => a.status === "venda_realizada")
       .reduce((sum, a) => sum + (Number(a.revenue_received) || 0), 0);
@@ -67,8 +62,7 @@ export default function Dashboard() {
     // ==========================================
     // 3. CÁLCULO DAS MÉTRICAS DE NEGÓCIO (BUSINESS METRICS)
     // ==========================================
-    
-    // Fallback de segurança caso as metas ainda não tenham carregado
+
     const safeCompanyGoals = companyGoals || {
       revenue_goal: 50000,
       sales_goal: 4,
@@ -76,13 +70,12 @@ export default function Dashboard() {
       daily_conversations_goal: 10
     };
 
-    // Multiplicador de dias para as metas diárias acompanharem o filtro de período
-    let daysMultiplier = 30; // Padrão Mês
+    let daysMultiplier = 30;
     if (period === "today") daysMultiplier = 1;
     if (period === "week") daysMultiplier = 7;
+    if (period === "year") daysMultiplier = 365;
 
-    // Formatar moeda BRL para exibição bonita
-    const formatCurrency = (val: number) => 
+    const formatCurrency = (val: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
 
     const businessMetrics = [
@@ -91,7 +84,7 @@ export default function Dashboard() {
         current: formatCurrency(totalRevenue),
         goal: formatCurrency(safeCompanyGoals.revenue_goal),
         pct: safeCompanyGoals.revenue_goal > 0 ? Math.round((totalRevenue / safeCompanyGoals.revenue_goal) * 100) : 0,
-        color: "text-emerald-500",
+        color: "text-emerald-600",
         bar: "bg-emerald-500"
       },
       {
@@ -99,7 +92,7 @@ export default function Dashboard() {
         current: totalVenda.toString(),
         goal: safeCompanyGoals.sales_goal.toString(),
         pct: safeCompanyGoals.sales_goal > 0 ? Math.round((totalVenda / safeCompanyGoals.sales_goal) * 100) : 0,
-        color: "text-blue-500",
+        color: "text-blue-600",
         bar: "bg-blue-500"
       },
       {
@@ -107,7 +100,7 @@ export default function Dashboard() {
         current: totalAgendada.toString(),
         goal: (safeCompanyGoals.daily_appointments_goal * daysMultiplier).toString(),
         pct: (safeCompanyGoals.daily_appointments_goal * daysMultiplier) > 0 ? Math.round((totalAgendada / (safeCompanyGoals.daily_appointments_goal * daysMultiplier)) * 100) : 0,
-        color: "text-purple-500",
+        color: "text-purple-600",
         bar: "bg-purple-500"
       },
       {
@@ -121,21 +114,15 @@ export default function Dashboard() {
     ];
 
     return {
-      businessMetrics, // Exportando os novos cards de negócio
-      
-      // --- VOLUME DE OPERAÇÃO ---
-      totalLeadsTrabalhados: totalLeadsFunnel, // Total em andamento (Cascata)
-      totalFirstContactReal: realFirstContact, // Volume puro de contatos
-      totalEngagedReal: realEngaged, // Volume puro de engajados
+      businessMetrics,
+      totalLeadsTrabalhados: totalLeadsFunnel,
+      totalFirstContactReal: realFirstContact,
+      totalEngagedReal: realEngaged,
       totalAgendado: totalAgendada,
-
-      // --- DADOS RESTAURADOS: CONVERSÃO E CALLS ---
       todayCallsScheduled: appointments.filter((a) => isToday(new Date(a.scheduled_date))).length,
       callsDone: totalRealizada,
       noShowRate: totalRealizada > 0 ? Math.round((appointments.filter(a => a.status === "no_show").length / totalRealizada) * 100) : 0,
       conversionRate: totalRealizada > 0 ? Math.round((totalVenda / totalRealizada) * 100) : 0,
-
-      // --- FUNIL LATERAL ---
       funnelData: {
         leads: totalLeadsFunnel,
         primeiroContato: totalPrimeiroContatoFunnel,
@@ -177,50 +164,46 @@ export default function Dashboard() {
     return map;
   }, [profiles]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center font-display animate-pulse text-primary italic text-xl text-foreground">Sincronizando Comando Central...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center text-slate-500 font-medium bg-slate-50">Sincronizando Comando Central...</div>;
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden text-foreground">
+    <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-800 font-sans">
       <Sidebar />
       <main className="flex-1 overflow-y-auto">
-        <header className="border-b border-border/40 bg-card/50 backdrop-blur-md sticky top-0 z-50 p-4">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-40 p-4 shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <h1 className="font-display font-bold text-xl uppercase tracking-tighter flex items-center gap-2">
-               <LayoutDashboard className="w-5 h-5 text-primary" /> Comando Central
+            <h1 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
+               <LayoutDashboard className="w-5 h-5 text-slate-500" /> Comando Central
             </h1>
             <PeriodFilter value={period} onChange={setPeriod} />
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-8">
+        <div className="max-w-7xl mx-auto p-6 flex flex-col lg:flex-row gap-6">
           <aside className="w-full lg:w-[280px] shrink-0">
             <SalesFunnel data={stats.funnelData} />
           </aside>
 
-          <div className="flex-1 space-y-10">
-            
-            {/* OBJETIVOS DO TIME (NOVAS BUSINESS METRICS) */}
+          <div className="flex-1 space-y-8">
+
+            {/* METAS DO COMERCIAL */}
             <section className="space-y-4">
-              <div className="flex items-center gap-2 text-primary">
-                <Rocket className="w-5 h-5" />
-                <h2 className="font-display font-bold text-sm uppercase tracking-widest">Objetivos do Time</h2>
-              </div>
-              
-              {/* Agora é um grid de 4 colunas (lg:grid-cols-4) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <h2 className="text-base font-semibold text-slate-800">Metas do Comercial</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats.businessMetrics.map((m) => (
-                  <div key={m.label} className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between shadow-xl group hover:scale-[1.02] transition-transform">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">{m.label}</span>
-                        <div className="mt-1 flex items-baseline gap-1">
-                           <span className="font-display text-lg font-bold">{m.current}</span>
-                           <span className="text-muted-foreground text-xs">/ {m.goal}</span>
+                  <div key={m.label} className="bg-white p-4 rounded-md border border-gray-200 shadow-sm flex flex-col justify-between hover:border-emerald-300 transition-colors">
+                    <div className="flex justify-between items-start gap-2 mb-4">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{m.label}</span>
+                        <div className="mt-1 flex flex-wrap items-baseline gap-1">
+                           <span className="text-base font-bold text-slate-800 whitespace-nowrap">{m.current}</span>
+                           <span className="text-slate-400 text-[10px] font-medium whitespace-nowrap">/ {m.goal}</span>
                         </div>
                       </div>
-                      <span className={`text-xl font-black ${m.color}`}>{m.pct}%</span>
+                      <span className={cn("text-base font-bold shrink-0", m.color)}>{m.pct}%</span>
                     </div>
-                    <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                    <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div className={`h-full transition-all duration-1000 ${m.bar}`} style={{ width: `${Math.min(m.pct, 100)}%` }} />
                     </div>
                   </div>
@@ -230,9 +213,7 @@ export default function Dashboard() {
 
             {/* VOLUME DE OPERAÇÃO */}
             <section className="space-y-4">
-              <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <BarChart3 className="w-4 h-4" /> Volume de Operação
-              </h2>
+              <h2 className="text-base font-semibold text-slate-800">Volume de Operação</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="Leads Totais" value={stats.totalLeadsTrabalhados} icon={Users} />
                 <StatCard label="1º Contato" value={stats.totalFirstContactReal} icon={MessageSquare} />
@@ -241,32 +222,30 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* PERFORMANCE POR GUERREIRO */}
+            {/* PERFORMANCE DA EQUIPE */}
             <section className="space-y-4">
-              <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Award className="w-4 h-4" /> Performance por Guerreiro
-              </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <h2 className="text-base font-semibold text-slate-800">Performance da Equipe</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {userPerformances.map(({ profile: p, tasks }) => (
-                  <div key={p.id} className="glass-card p-6 border-border/40 hover:border-primary/30 transition-all group shadow-xl relative overflow-hidden">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                        <span className="text-primary font-black text-lg">{p.full_name?.charAt(0).toUpperCase()}</span>
+                  <div key={p.id} className="bg-white p-5 rounded-md border border-gray-200 shadow-sm flex flex-col hover:border-blue-200 transition-colors">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                        <span className="text-slate-600 font-bold text-sm">{p.full_name?.charAt(0).toUpperCase()}</span>
                       </div>
                       <div>
-                        <h3 className="font-display font-bold">{p.full_name}</h3>
-                        <Badge variant="outline" className="text-[10px] h-4 uppercase">{p.role || "Membro"}</Badge>
+                        <h3 className="font-semibold text-slate-800 text-sm">{p.full_name}</h3>
+                        <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">{p.role || "Membro"}</span>
                       </div>
                     </div>
-                    <div className="space-y-5">
+                    <div className="space-y-4">
                       {tasks.map((task) => (
-                        <div key={task.label} className="space-y-2">
+                        <div key={task.label} className="space-y-1.5">
                           <div className="flex justify-between items-end">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase">{task.label}</span>
-                            <span className="text-xs font-black">{task.current} / {task.goal}</span>
+                            <span className="text-xs font-semibold text-slate-500">{task.label}</span>
+                            <span className="text-xs font-bold text-slate-700">{task.current} / {task.goal}</span>
                           </div>
-                          <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden">
-                            <div className={cn("h-full transition-all duration-1000", (task.current / task.goal) >= 1 ? "bg-emerald-500" : "bg-primary")} style={{ width: `${Math.min((task.current / task.goal) * 100, 100)}%` }} />
+                          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div className={cn("h-full transition-all duration-1000", (task.current / task.goal) >= 1 ? "bg-emerald-500" : "bg-blue-500")} style={{ width: `${Math.min((task.current / task.goal) * 100, 100)}%` }} />
                           </div>
                         </div>
                       ))}
@@ -276,11 +255,9 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* SEÇÃO RESTAURADA: CONVERSÃO E CALLS */}
+            {/* CONVERSÃO E CALLS */}
             <section className="space-y-4">
-              <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <Phone className="w-4 h-4" /> Conversão e Calls
-              </h2>
+              <h2 className="text-base font-semibold text-slate-800">Conversão e Calls</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="Conversão Venda" value={`${stats.conversionRate}%`} icon={TrendingUp} variant="success" />
                 <StatCard label="Taxa No Show" value={`${stats.noShowRate}%`} icon={PhoneOff} variant={stats.noShowRate > 25 ? "danger" : "default"} />
@@ -289,11 +266,9 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* SEÇÃO RESTAURADA: PRÓXIMAS CALLS AGENDADAS */}
+            {/* PRÓXIMAS CALLS AGENDADAS */}
             <section className="space-y-4 pb-12">
-              <h2 className="font-display font-bold text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4" /> Próximas Calls
-              </h2>
+              <h2 className="text-base font-semibold text-slate-800">Próximas Calls</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {appointments.slice(0, 6).map((apt) => (
                   <AppointmentCardInteractive
@@ -305,7 +280,11 @@ export default function Dashboard() {
                     status={apt.status}
                   />
                 ))}
-                {appointments.length === 0 && <p className="text-xs text-muted-foreground italic col-span-full text-center py-8 glass-card">Nenhuma call registrada.</p>}
+                {appointments.length === 0 && (
+                  <div className="col-span-full bg-white border border-gray-200 rounded-md p-8 text-center">
+                    <p className="text-sm text-slate-500 font-medium">Nenhuma call registrada no período.</p>
+                  </div>
+                )}
               </div>
             </section>
 

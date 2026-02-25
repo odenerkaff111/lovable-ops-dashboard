@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Calendar, User, CheckCircle2, XCircle, DollarSign, Clock } from "lucide-react";
+import { User, CheckCircle2, XCircle, DollarSign, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -21,18 +21,12 @@ export default function AppointmentCardInteractive({
   responsibleName,
   status
 }: AppointmentCardProps) {
-  // Estados para controlar o modal de faturamento
   const [showRevenueModal, setShowRevenueModal] = useState(false);
   const [revenueValue, setRevenueValue] = useState("");
 
   const updateStatus = async (newStatus: string, revenue?: number) => {
-    // Prepara os dados para atualização
     const updateData: any = { status: newStatus };
-    
-    // Se a receita foi informada (venda), adiciona ao pacote de dados
-    if (revenue !== undefined) {
-      updateData.revenue_received = revenue;
-    }
+    if (revenue !== undefined) updateData.revenue_received = revenue;
 
     const { error } = await supabase
       .from("appointments")
@@ -42,30 +36,26 @@ export default function AppointmentCardInteractive({
     if (error) {
       toast.error("Erro ao atualizar status");
     } else {
-      toast.success(`Status atualizado para ${newStatus.replace("_", " ")}`);
+      toast.success(`Status: ${newStatus.replace("_", " ")}`);
     }
   };
 
   const handleConfirmSale = () => {
-    // Converte o valor digitado para número
     const numericValue = parseFloat(revenueValue.replace(",", "."));
-    
     if (isNaN(numericValue) || numericValue < 0) {
-      toast.error("Por favor, insira um valor válido.");
+      toast.error("Insira um valor válido.");
       return;
     }
-
-    // Atualiza com o valor financeiro e fecha o modal
     updateStatus("venda_realizada", numericValue);
     setShowRevenueModal(false);
   };
 
   const getStatusConfig = (currentStatus: string) => {
     switch (currentStatus) {
-      case "venda_realizada": return { color: "border-amber-500 bg-amber-500/10", label: "Venda " };
-      case "no_show": return { color: "border-red-500 bg-red-500/10", label: "No-Show " };
-      case "realizada": return { color: "border-emerald-500 bg-emerald-500/10", label: "Realizada " };
-      default: return { color: "border-border bg-card", label: "Pendente" };
+      case "venda_realizada": return { accent: "border-l-amber-500", badge: "bg-amber-50 text-amber-700 border-amber-100", label: "Venda" };
+      case "no_show": return { accent: "border-l-red-500", badge: "bg-red-50 text-red-700 border-red-100", label: "No-Show" };
+      case "realizada": return { accent: "border-l-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", label: "Realizada" };
+      default: return { accent: "border-l-slate-300", badge: "bg-slate-50 text-slate-600 border-slate-200", label: "Pendente" };
     }
   };
 
@@ -73,86 +63,51 @@ export default function AppointmentCardInteractive({
 
   return (
     <>
-      <div className={cn("glass-card p-4 border-l-4 transition-all shadow-md relative", config.color)}>
+      <div className={cn("bg-white p-4 border border-gray-200 border-l-4 rounded-md shadow-sm transition-all hover:border-slate-300", config.accent)}>
         <div className="flex justify-between items-start mb-3">
-          <div className="space-y-1">
-            <h4 className="font-display font-bold text-sm uppercase tracking-tight">{leadName}</h4>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
+          <div className="space-y-0.5">
+            <h4 className="font-bold text-sm text-slate-800 uppercase tracking-tight">{leadName}</h4>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase">
               <User className="w-3 h-3" /> {responsibleName}
             </div>
           </div>
-          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-background/50 border">
+          <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded border", config.badge)}>
             {config.label}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-xs mb-4 text-foreground/80 bg-background/40 p-2 rounded">
-          <Clock className="w-3 h-3 text-primary" />
+        <div className="flex items-center gap-2 text-[11px] mb-4 text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1.5 rounded font-bold">
+          <Clock className="w-3 h-3 text-slate-400" />
           {format(new Date(scheduledDate), "dd/MM @ HH:mm", { locale: ptBR })}
         </div>
 
         {status === "pendente" && (
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => updateStatus("realizada")}
-              className="flex flex-col items-center gap-1 p-2 rounded border border-emerald-500/30 hover:bg-emerald-500 hover:text-white transition-all text-[9px] font-bold uppercase"
-            >
-              <CheckCircle2 className="w-4 h-4" /> Realizada
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
+            <button onClick={() => updateStatus("realizada")} className="flex items-center justify-center gap-1.5 py-2 rounded text-[9px] font-bold uppercase text-emerald-600 hover:bg-emerald-50 transition-colors">
+              <CheckCircle2 className="w-3.5 h-3.5" /> OK
             </button>
-            <button
-              onClick={() => updateStatus("no_show")}
-              className="flex flex-col items-center gap-1 p-2 rounded border border-red-500/30 hover:bg-red-500 hover:text-white transition-all text-[9px] font-bold uppercase"
-            >
-              <XCircle className="w-4 h-4" /> No-Show
+            <button onClick={() => updateStatus("no_show")} className="flex items-center justify-center gap-1.5 py-2 rounded text-[9px] font-bold uppercase text-red-600 hover:bg-red-50 transition-colors">
+              <XCircle className="w-3.5 h-3.5" /> Faltou
             </button>
-            <button
-              // Muda o evento do clique para abrir o modal em vez de salvar direto
-              onClick={() => setShowRevenueModal(true)}
-              className="flex flex-col items-center gap-1 p-2 rounded border border-amber-500/30 hover:bg-amber-500 hover:text-white transition-all text-[9px] font-bold uppercase"
-            >
-              <DollarSign className="w-4 h-4" /> Venda
+            <button onClick={() => setShowRevenueModal(true)} className="flex items-center justify-center gap-1.5 py-2 rounded text-[9px] font-bold uppercase text-amber-600 hover:bg-amber-50 transition-colors">
+              <DollarSign className="w-3.5 h-3.5" /> Venda
             </button>
           </div>
         )}
       </div>
 
-      {/* MODAL DE FATURAMENTO (Aparece ao clicar em Venda) */}
       {showRevenueModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-background border border-border rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in fade-in zoom-in-95">
-            <h3 className="font-display font-bold text-lg mb-2 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-amber-500" /> Confirmar Venda
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Qual foi o valor recebido (PIX/Cartão) nesta venda para <strong className="text-foreground">{leadName}</strong>?
-            </p>
-            
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-4">
+          <div className="bg-white border border-gray-200 rounded-md shadow-xl p-6 w-full max-w-sm animate-in zoom-in-95">
+            <h3 className="font-bold text-slate-800 text-base mb-1 uppercase tracking-tight">Valor da Venda</h3>
+            <p className="text-xs text-slate-500 mb-4">Confirme o faturamento recebido de <span className="font-bold text-slate-700">{leadName}</span>.</p>
             <div className="relative mb-6">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">R$</span>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={revenueValue}
-                onChange={(e) => setRevenueValue(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                autoFocus
-              />
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
+              <input type="number" step="0.01" className="w-full pl-10 pr-4 py-2.5 rounded border border-gray-200 text-lg font-bold text-slate-800 focus:outline-none focus:border-blue-400" value={revenueValue} onChange={(e) => setRevenueValue(e.target.value)} autoFocus />
             </div>
-
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowRevenueModal(false)}
-                className="flex-1 py-2 rounded-md border border-input text-sm font-semibold hover:bg-accent transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmSale}
-                className="flex-1 py-2 rounded-md bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 transition-colors shadow-sm"
-              >
-                Confirmar
-              </button>
+              <button onClick={() => setShowRevenueModal(false)} className="flex-1 py-2 text-xs font-bold uppercase text-slate-500 hover:bg-slate-100 rounded transition-colors">Cancelar</button>
+              <button onClick={handleConfirmSale} className="flex-1 py-2 bg-slate-800 text-white text-xs font-bold uppercase rounded hover:bg-slate-700 transition-colors shadow-sm">Confirmar</button>
             </div>
           </div>
         </div>
