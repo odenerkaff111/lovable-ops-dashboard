@@ -27,7 +27,9 @@ import { cn } from "@/lib/utils";
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const [period, setPeriod] = useState<PeriodType>("month");
-  const { activities, appointments, profiles, goals, taskTypes, loading } = useDashboardData(period);
+  
+  // NOVO: Desestruturando o companyGoals (Metas Globais) que configuramos no hook
+  const { activities, appointments, profiles, goals, taskTypes, companyGoals, loading } = useDashboardData(period);
 
   const stats = useMemo(() => {
     // Agora o totalByType pega os dados puros que o novo useDashboardData manda
@@ -43,37 +45,84 @@ export default function Dashboard() {
     const realFollowUp = totalByType("follow_up");
     const realQualificacao = totalByType("qualificacao");
 
-    const getGoalTotal = (taskName: string) => {
-      const taskType = taskTypes.find(t => t.name === taskName);
-      if (!taskType) return 0;
-      return goals
-        .filter(g => g.task_type_id === taskType.id)
-        .reduce((sum, g) => sum + (g.period_goal || g.daily_goal), 0);
-    };
-
-    const goalLeads = getGoalTotal("lead_criado");
-    const goalEngaged = getGoalTotal("lead_engajado");
-    const goalFollow = getGoalTotal("follow_up");
-
     // ==========================================
-    // 2. ESTADO REAL DO FUNIL (Pipeline Acumulado)
+    // 2. ESTADO REAL DO FUNIL E VENDAS
     // ==========================================
     const totalVenda = appointments.filter(a => a.status === "venda_realizada").length;
     const totalRealizada = appointments.filter(a => a.status !== "pendente").length;
     const totalAgendada = appointments.length;
 
+    // NOVO: Cálculo de Faturamento Real
+    // Soma a coluna 'revenue_received' de todas as calls marcadas como "venda_realizada"
+    const totalRevenue = appointments
+      .filter(a => a.status === "venda_realizada")
+      .reduce((sum, a) => sum + (Number(a.revenue_received) || 0), 0);
+
     // Regra do Funil: A soma sobe em cascata para preencher as etapas visuais
     const totalQualificacaoFunnel = realQualificacao + totalAgendada;
     const totalEngajadoFunnel = realEngaged + totalQualificacaoFunnel;
     const totalPrimeiroContatoFunnel = realFirstContact + totalEngajadoFunnel;
-    const totalLeadsFunnel = realLeadsCreated + totalPrimeiroContatoFunnel; 
+    const totalLeadsFunnel = realLeadsCreated + totalPrimeiroContatoFunnel;
+
+    // ==========================================
+    // 3. CÁLCULO DAS MÉTRICAS DE NEGÓCIO (BUSINESS METRICS)
+    // ==========================================
+    
+    // Fallback de segurança caso as metas ainda não tenham carregado
+    const safeCompanyGoals = companyGoals || {
+      revenue_goal: 50000,
+      sales_goal: 4,
+      daily_appointments_goal: 1,
+      daily_conversations_goal: 10
+    };
+
+    // Multiplicador de dias para as metas diárias acompanharem o filtro de período
+    let daysMultiplier = 30; // Padrão Mês
+    if (period === "today") daysMultiplier = 1;
+    if (period === "week") daysMultiplier = 7;
+
+    // Formatar moeda BRL para exibição bonita
+    const formatCurrency = (val: number) => 
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
+
+    const businessMetrics = [
+      {
+        label: "Faturamento",
+        current: formatCurrency(totalRevenue),
+        goal: formatCurrency(safeCompanyGoals.revenue_goal),
+        pct: safeCompanyGoals.revenue_goal > 0 ? Math.round((totalRevenue / safeCompanyGoals.revenue_goal) * 100) : 0,
+        color: "text-emerald-500",
+        bar: "bg-emerald-500"
+      },
+      {
+        label: "Vendas (Mês)",
+        current: totalVenda.toString(),
+        goal: safeCompanyGoals.sales_goal.toString(),
+        pct: safeCompanyGoals.sales_goal > 0 ? Math.round((totalVenda / safeCompanyGoals.sales_goal) * 100) : 0,
+        color: "text-blue-500",
+        bar: "bg-blue-500"
+      },
+      {
+        label: "Agendamentos",
+        current: totalAgendada.toString(),
+        goal: (safeCompanyGoals.daily_appointments_goal * daysMultiplier).toString(),
+        pct: (safeCompanyGoals.daily_appointments_goal * daysMultiplier) > 0 ? Math.round((totalAgendada / (safeCompanyGoals.daily_appointments_goal * daysMultiplier)) * 100) : 0,
+        color: "text-purple-500",
+        bar: "bg-purple-500"
+      },
+      {
+        label: "Conversas (Engajamento)",
+        current: realEngaged.toString(),
+        goal: (safeCompanyGoals.daily_conversations_goal * daysMultiplier).toString(),
+        pct: (safeCompanyGoals.daily_conversations_goal * daysMultiplier) > 0 ? Math.round((realEngaged / (safeCompanyGoals.daily_conversations_goal * daysMultiplier)) * 100) : 0,
+        color: "text-amber-500",
+        bar: "bg-amber-500"
+      }
+    ];
 
     return {
-      // --- OBJETIVOS DO TIME ---
-      pctLeads: goalLeads > 0 ? Math.round((realLeadsCreated / goalLeads) * 100) : 0,
-      pctEngaged: goalEngaged > 0 ? Math.round((realEngaged / goalEngaged) * 100) : (totalEngajadoFunnel > 0 ? 100 : 0),
-      pctFollow: goalFollow > 0 ? Math.round((realFollowUp / goalFollow) * 100) : 0,
-
+      businessMetrics, // Exportando os novos cards de negócio
+      
       // --- VOLUME DE OPERAÇÃO ---
       totalLeadsTrabalhados: totalLeadsFunnel, // Total em andamento (Cascata)
       totalFirstContactReal: realFirstContact, // Volume puro de contatos
@@ -97,7 +146,7 @@ export default function Dashboard() {
         venda: totalVenda
       }
     };
-  }, [activities, appointments, goals, taskTypes]);
+  }, [activities, appointments, goals, taskTypes, companyGoals, period]);
 
   const userPerformances = useMemo(() => {
     return profiles.filter(p => p.active === true).map((p) => {
@@ -149,22 +198,27 @@ export default function Dashboard() {
           </aside>
 
           <div className="flex-1 space-y-10">
-            {/* OBJETIVOS DO TIME */}
+            
+            {/* OBJETIVOS DO TIME (NOVAS BUSINESS METRICS) */}
             <section className="space-y-4">
               <div className="flex items-center gap-2 text-primary">
                 <Rocket className="w-5 h-5" />
                 <h2 className="font-display font-bold text-sm uppercase tracking-widest">Objetivos do Time</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { label: "Criação de Leads", pct: stats.pctLeads, color: "text-blue-500", bar: "bg-blue-500" },
-                  { label: "Engajamento", pct: stats.pctEngaged, color: "text-emerald-500", bar: "bg-emerald-500" },
-                  { label: "Follow Ups", pct: stats.pctFollow, color: "text-amber-500", bar: "bg-amber-500" }
-                ].map((m) => (
+              
+              {/* Agora é um grid de 4 colunas (lg:grid-cols-4) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {stats.businessMetrics.map((m) => (
                   <div key={m.label} className="glass-card p-6 border-l-4 border-l-primary flex flex-col justify-between shadow-xl group hover:scale-[1.02] transition-transform">
                     <div className="flex justify-between items-start mb-4">
-                      <span className="text-xs font-bold text-muted-foreground uppercase">{m.label}</span>
-                      <span className={`text-2xl font-black ${m.color}`}>{m.pct}%</span>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase">{m.label}</span>
+                        <div className="mt-1 flex items-baseline gap-1">
+                           <span className="font-display text-lg font-bold">{m.current}</span>
+                           <span className="text-muted-foreground text-xs">/ {m.goal}</span>
+                        </div>
+                      </div>
+                      <span className={`text-xl font-black ${m.color}`}>{m.pct}%</span>
                     </div>
                     <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                       <div className={`h-full transition-all duration-1000 ${m.bar}`} style={{ width: `${Math.min(m.pct, 100)}%` }} />

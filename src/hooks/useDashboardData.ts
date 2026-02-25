@@ -10,7 +10,7 @@ interface ActivityCount {
   count: number;
 }
 
-interface Appointment {
+export interface Appointment {
   id: string;
   lead_id: string;
   lead_name: string;
@@ -18,6 +18,7 @@ interface Appointment {
   user_id: string;
   status: "pendente" | "realizada" | "no_show" | "venda_realizada" | "venda_nao_realizada";
   created_at: string;
+  revenue_received?: number; // Traz o valor que entrou no caixa
 }
 
 interface Profile {
@@ -40,12 +41,29 @@ interface TaskType {
   name: string;
 }
 
+// Interface para as novas Metas Globais da Empresa
+export interface CompanyGoals {
+  revenue_goal: number;
+  sales_goal: number;
+  daily_appointments_goal: number;
+  daily_conversations_goal: number;
+}
+
 export function useDashboardData(period: PeriodFilter, customRange?: { start: Date; end: Date }) {
   const [activities, setActivities] = useState<ActivityCount[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [goals, setGoals] = useState<UserGoal[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
+  
+  // Estado para armazenar as Metas da Empresa com valores padrão seguros
+  const [companyGoals, setCompanyGoals] = useState<CompanyGoals>({
+    revenue_goal: 50000,
+    sales_goal: 4,
+    daily_appointments_goal: 1,
+    daily_conversations_goal: 10
+  });
+  
   const [loading, setLoading] = useState(true);
 
   const getDateRange = useCallback(() => {
@@ -70,7 +88,14 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
     const daysInPeriod = Math.max(1, differenceInDays(end, start) + 1);
 
     try {
-      const [activitiesRes, appointmentsRes, profilesRes, goalsRes, taskTypesRes] = await Promise.all([
+      const [
+        activitiesRes, 
+        appointmentsRes, 
+        profilesRes, 
+        goalsRes, 
+        taskTypesRes,
+        companyGoalsRes // Busca as metas dinâmicas no Supabase
+      ] = await Promise.all([
         supabase
           .from("activity_logs")
           .select("user_id, action_type")
@@ -84,9 +109,20 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         supabase.from("profiles").select("*").eq("active", true),
         supabase.from("user_goals").select("*"),
         supabase.from("task_types").select("*"),
+        supabase.from("company_goals").select("*").limit(1).maybeSingle()
       ]);
 
       if (activitiesRes.error) throw activitiesRes.error;
+
+      // Se encontrou as metas da empresa no banco, atualiza o estado
+      if (companyGoalsRes.data) {
+        setCompanyGoals({
+          revenue_goal: Number(companyGoalsRes.data.revenue_goal) || 50000,
+          sales_goal: Number(companyGoalsRes.data.sales_goal) || 4,
+          daily_appointments_goal: Number(companyGoalsRes.data.daily_appointments_goal) || 1,
+          daily_conversations_goal: Number(companyGoalsRes.data.daily_conversations_goal) || 10
+        });
+      }
 
       const rawActivities = activitiesRes.data ?? [];
       const rawAppointments = (appointmentsRes.data ?? []) as Appointment[];
@@ -106,21 +142,20 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         });
       });
 
-      // Contar Vendas (da tabela appointments)
+      // Contar Vendas e Atividades normalmente
       rawAppointments.forEach(app => {
         if (app.status === "venda_realizada" && userStats.has(app.user_id)) {
           userStats.get(app.user_id)!.venda_realizada++;
         }
       });
 
-      // Contar Atividades (da tabela activity_logs)
       rawActivities.forEach(act => {
         if (userStats.has(act.user_id)) {
           const stats = userStats.get(act.user_id)!;
           if (stats[act.action_type] !== undefined) {
             stats[act.action_type]++;
           } else {
-            stats[act.action_type] = 1; 
+            stats[act.action_type] = 1;
           }
         }
       });
@@ -138,11 +173,12 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         period_goal: goal.daily_goal * daysInPeriod
       }));
 
-      setActivities(realCounts); // Agora envia APENAS o volume real
+      setActivities(realCounts);
       setAppointments(rawAppointments);
       setProfiles((profilesRes.data ?? []) as Profile[]);
       setGoals(processedGoals as UserGoal[]);
       setTaskTypes((taskTypesRes.data ?? []) as TaskType[]);
+      
     } catch (err: any) {
       console.error("🚨 Erro ao carregar Dashboard:", err.message);
     } finally {
@@ -155,14 +191,23 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
     const actChannel = supabase.channel("activity_changes")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_logs" }, () => fetchData())
       .subscribe();
+      
+    // Agora o canal "escuta" também a tabela de metas da empresa
+    const goalsChannel = supabase.channel("company_goals_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "company_goals" }, () => fetchData())
+      .subscribe();
+
     const appChannel = supabase.channel("appointment_changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => fetchData())
       .subscribe();
+
     return () => {
       supabase.removeChannel(actChannel);
+      supabase.removeChannel(goalsChannel);
       supabase.removeChannel(appChannel);
     };
   }, [fetchData]);
 
-  return { activities, appointments, profiles, goals, taskTypes, loading, refetch: fetchData };
+  // Retorna tudo, incluindo a nova propriedade companyGoals
+  return { activities, appointments, profiles, goals, taskTypes, companyGoals, loading, refetch: fetchData };
 }

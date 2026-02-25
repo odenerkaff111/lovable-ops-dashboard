@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Target, Trash2, X, ShieldCheck, Loader2 } from "lucide-react"; // Loader2 adicionado aqui
+import { UserPlus, Target, Trash2, X, ShieldCheck, Loader2, Rocket, DollarSign } from "lucide-react"; 
 import Sidebar from "@/components/layout/Sidebar";
 import { Badge } from "@/components/ui/badge";
 
@@ -31,6 +31,15 @@ interface UserGoal {
   daily_goal: number;
 }
 
+// NOVO: Interface para as Metas Globais
+interface CompanyGoals {
+  id: string;
+  revenue_goal: number;
+  sales_goal: number;
+  daily_appointments_goal: number;
+  daily_conversations_goal: number;
+}
+
 const functionOptions = [
   { value: "sdr", label: "SDR" },
   { value: "closer", label: "Closer" },
@@ -43,10 +52,11 @@ export default function Admin() {
   const { isAdmin } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [goals, setGoals] = useState<UserGoal[]>([]);
+  const [companyGoals, setCompanyGoals] = useState<CompanyGoals | null>(null); // NOVO: Estado das metas da empresa
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -65,18 +75,20 @@ export default function Admin() {
   }, [isAdmin, navigate]);
 
   async function fetchData() {
-    const [pRes, tRes, gRes] = await Promise.all([
+    const [pRes, tRes, gRes, cRes] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name", { ascending: true }),
       supabase.from("task_types").select("*"),
       supabase.from("user_goals").select("*"),
+      supabase.from("company_goals").select("*").limit(1).maybeSingle(), // NOVO: Busca metas globais
     ]);
 
     setProfiles((pRes.data ?? []) as Profile[]);
     setTaskTypes((tRes.data ?? []) as TaskType[]);
     setGoals((gRes.data ?? []) as UserGoal[]);
+    if (cRes.data) setCompanyGoals(cRes.data as CompanyGoals);
   }
 
-  // FUNÇÃO ATUALIZADA: Agora usa o signUp direto para evitar o erro 404 da Edge Function
+  // Função para criar usuário
   async function createUser() {
     if (!newEmail || !newName || !newPassword) {
       toast({ title: "Erro", description: "Preencha os campos obrigatórios.", variant: "destructive" });
@@ -85,7 +97,6 @@ export default function Admin() {
     setCreating(true);
 
     try {
-      // Usamos signUp em vez de invoke para criar o acesso direto
       const { data, error } = await supabase.auth.signUp({
         email: newEmail,
         password: newPassword,
@@ -103,7 +114,7 @@ export default function Admin() {
         toast({ title: "Usuário criado!", description: "O acesso já está ativo." });
         setNewEmail(""); setNewName(""); setNewPassword("");
         setShowCreateForm(false);
-        fetchData(); // Recarrega para aparecer na matriz
+        fetchData(); 
       }
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -112,10 +123,11 @@ export default function Admin() {
     }
   }
 
+  // Salva metas individuais
   async function handleSaveGoal(userId: string, taskTypeId: string, val: string) {
     const value = parseInt(val) || 0;
     const existing = goals.find((g) => g.user_id === userId && g.task_type_id === taskTypeId);
-    
+
     if (existing) {
       if (existing.daily_goal === value) return;
       await supabase.from("user_goals").update({ daily_goal: value }).eq("id", existing.id);
@@ -123,8 +135,31 @@ export default function Admin() {
       if (value === 0) return;
       await supabase.from("user_goals").insert({ user_id: userId, task_type_id: taskTypeId, daily_goal: value });
     }
-    toast({ title: "Meta salva!" });
+    toast({ title: "Meta individual salva!" });
     fetchData();
+  }
+
+  // NOVO: Salva metas globais da empresa
+  async function handleSaveCompanyGoal(field: keyof CompanyGoals, val: string) {
+    if (!companyGoals?.id) return;
+    const value = parseFloat(val) || 0;
+    
+    if (companyGoals[field] === value) return; // Não faz nada se não mudou
+
+    // Atualização otimista na tela
+    setCompanyGoals(prev => prev ? { ...prev, [field]: value } : null);
+
+    const { error } = await supabase
+      .from("company_goals")
+      .update({ [field]: value })
+      .eq("id", companyGoals.id);
+
+    if (error) {
+      toast({ title: "Erro", description: "Falha ao salvar a meta da empresa.", variant: "destructive" });
+      fetchData(); // Recarrega do banco se der erro
+    } else {
+      toast({ title: "Meta global atualizada com sucesso!" });
+    }
   }
 
   function getTaskLabel(name: string) {
@@ -139,16 +174,16 @@ export default function Admin() {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <Sidebar />
-      
+
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-6">
-          
+
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <ShieldCheck className="w-8 h-8 text-primary" />
               <h1 className="text-3xl font-display font-bold">Painel Admin</h1>
             </div>
-            <Button 
+            <Button
               onClick={() => setShowCreateForm(!showCreateForm)}
               variant={showCreateForm ? "outline" : "default"}
               className="gap-2 shadow-lg shadow-primary/20"
@@ -190,13 +225,71 @@ export default function Admin() {
             </section>
           )}
 
+          {/* NOVO: SEÇÃO DE METAS DA EMPRESA */}
+          {companyGoals && (
+            <section className="glass-card border-emerald-500/20 overflow-hidden shadow-xl mb-6">
+              <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/20">
+                <h2 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2 text-emerald-600">
+                  <Rocket className="w-4 h-4" /> Metas Globais da Empresa
+                </h2>
+              </div>
+              
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                    <DollarSign className="w-3 h-3 text-emerald-500" /> Faturamento (Mês)
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium text-sm">R$</span>
+                    <Input 
+                      type="number" 
+                      className="pl-9 bg-background font-bold text-lg"
+                      defaultValue={companyGoals.revenue_goal} 
+                      onBlur={(e) => handleSaveCompanyGoal('revenue_goal', e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Vendas (Mês)</Label>
+                  <Input 
+                    type="number" 
+                    className="bg-background font-bold text-lg"
+                    defaultValue={companyGoals.sales_goal} 
+                    onBlur={(e) => handleSaveCompanyGoal('sales_goal', e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Agendamentos (Dia)</Label>
+                  <Input 
+                    type="number" 
+                    className="bg-background font-bold text-lg"
+                    defaultValue={companyGoals.daily_appointments_goal} 
+                    onBlur={(e) => handleSaveCompanyGoal('daily_appointments_goal', e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Conversas (Dia)</Label>
+                  <Input 
+                    type="number" 
+                    className="bg-background font-bold text-lg"
+                    defaultValue={companyGoals.daily_conversations_goal} 
+                    onBlur={(e) => handleSaveCompanyGoal('daily_conversations_goal', e.target.value)} 
+                  />
+                </div>
+              </div>
+            </section>
+          )}
+
           <section className="glass-card border-border/40 overflow-hidden shadow-2xl">
             <div className="p-4 bg-secondary/20 border-b border-border/40">
               <h2 className="text-sm font-bold uppercase tracking-widest flex items-center gap-2">
                 <Target className="w-4 h-4 text-primary" /> Matriz de Performance Individual
               </h2>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -227,7 +320,7 @@ export default function Admin() {
                             return (
                               <div key={tt.id} className="flex flex-col items-center gap-1">
                                 <span className="text-[9px] font-bold text-muted-foreground uppercase">{getTaskLabel(tt.name)}</span>
-                                <Input 
+                                <Input
                                   type="number"
                                   className="h-8 w-16 text-center text-xs bg-background/50"
                                   defaultValue={goal?.daily_goal || ""}
