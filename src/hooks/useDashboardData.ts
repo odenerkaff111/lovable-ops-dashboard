@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, differenceInDays } from "date-fns";
+import { 
+  startOfDay, endOfDay, 
+  startOfWeek, endOfWeek, 
+  startOfMonth, endOfMonth, 
+  startOfYear, endOfYear, 
+  differenceInDays, format, eachDayOfInterval, eachMonthOfInterval 
+} from "date-fns";
 
 export type PeriodFilter = "today" | "week" | "month" | "year" | "custom";
 
@@ -48,12 +54,29 @@ export interface CompanyGoals {
   daily_conversations_goal: number;
 }
 
+// Novos tipos para os gráficos avançados
+export interface DailyHistory {
+  date: string;
+  tentativas: number;
+  respostas: number;
+}
+
+export interface AnnualSummary {
+  month: string;
+  leads: number;
+  vendas: number;
+  faturamento: number;
+}
+
 export function useDashboardData(period: PeriodFilter, customRange?: { start: Date; end: Date }) {
   const [activities, setActivities] = useState<ActivityCount[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [goals, setGoals] = useState<UserGoal[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
+  const [dailyHistory, setDailyHistory] = useState<DailyHistory[]>([]);
+  const [annualSummary, setAnnualSummary] = useState<AnnualSummary[]>([]);
+  const [leadOrigins, setLeadOrigins] = useState<{label: string, value: number, color: string}[]>([]);
 
   const [companyGoals, setCompanyGoals] = useState<CompanyGoals>({
     revenue_goal: 50000,
@@ -86,6 +109,10 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
     setLoading(true);
     const { start, end } = getDateRange();
     const daysInPeriod = Math.max(1, differenceInDays(end, start) + 1);
+    
+    // Datas para o Resumo Anual (Janeiro a Dezembro)
+    const yearStart = startOfYear(new Date());
+    const yearEnd = endOfYear(new Date());
 
     try {
       const [
@@ -94,26 +121,24 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         profilesRes,
         goalsRes,
         taskTypesRes,
-        companyGoalsRes
+        companyGoalsRes,
+        annualActivitiesRes,
+        annualAppointmentsRes
       ] = await Promise.all([
-        supabase
-          .from("activity_logs")
-          .select("user_id, action_type")
-          .gte("timestamp", start.toISOString())
-          .lte("timestamp", end.toISOString()),
-        supabase
-          .from("appointments")
-          .select("*")
-          .gte("scheduled_date", start.toISOString())
-          .lte("scheduled_date", end.toISOString()),
+        supabase.from("activity_logs").select("user_id, action_type, timestamp").gte("timestamp", start.toISOString()).lte("timestamp", end.toISOString()),
+        supabase.from("appointments").select("*").gte("scheduled_date", start.toISOString()).lte("scheduled_date", end.toISOString()),
         supabase.from("profiles").select("*").eq("active", true),
         supabase.from("user_goals").select("*"),
         supabase.from("task_types").select("*"),
-        supabase.from("company_goals").select("*").limit(1).maybeSingle()
+        supabase.from("company_goals").select("*").limit(1).maybeSingle(),
+        // Queries para o Resumo Anual
+        supabase.from("activity_logs").select("action_type, timestamp").eq("action_type", "lead_criado").gte("timestamp", yearStart.toISOString()).lte("timestamp", yearEnd.toISOString()),
+        supabase.from("appointments").select("status, revenue_received, scheduled_date").gte("scheduled_date", yearStart.toISOString()).lte("scheduled_date", yearEnd.toISOString())
       ]);
 
       if (activitiesRes.error) throw activitiesRes.error;
 
+      // 1. Processar Metas Globais
       if (companyGoalsRes.data) {
         setCompanyGoals({
           revenue_goal: Number(companyGoalsRes.data.revenue_goal) || 50000,
@@ -123,39 +148,84 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         });
       }
 
+      // 2. Processar Atividades do Período e Histórico Diário (Combo Chart)
       const rawActivities = activitiesRes.data ?? [];
-      const rawAppointments = (appointmentsRes.data ?? []) as Appointment[];
-
-      const userStats = new Map<string, Record<string, number>>();
-
-      (profilesRes.data ?? []).forEach(p => {
-        userStats.set(p.id, {
-          venda_realizada: 0,
-          qualificacao: 0,
-          lead_engajado: 0,
-          primeiro_contato: 0,
-          lead_criado: 0,
-          follow_up: 0
-        });
+      const daysInterval = eachDayOfInterval({ start, end });
+      const historyMap = new Map<string, {tentativas: number, respostas: number}>();
+      
+      daysInterval.forEach(day => {
+        historyMap.set(format(day, "yyyy-MM-dd"), { tentativas: 0, respostas: 0 });
       });
 
+      const userStats = new Map<string, Record<string, number>>();
+      (profilesRes.data ?? []).forEach(p => {
+        userStats.set(p.id, { venda_realizada: 0, qualificacao: 0, lead_engajado: 0, primeiro_contato: 0, lead_criado: 0, follow_up: 0, abordagem: 0, respostas: 0 });
+      });
+
+      rawActivities.forEach(act => {
+        const dateKey = format(new Date(act.timestamp), "yyyy-MM-dd");
+        
+        // Alimentar Gráfico de Combinação
+        if (historyMap.has(dateKey)) {
+          const dayData = historyMap.get(dateKey)!;
+          if (act.action_type === 'abordagem' || act.action_type === 'follow_up') dayData.tentativas++;
+          if (act.action_type === 'respostas') dayData.respostas++;
+        }
+
+        // Alimentar Stats por Usuário
+        if (userStats.has(act.user_id)) {
+          const stats = userStats.get(act.user_id)!;
+          if (stats[act.action_type] !== undefined) stats[act.action_type]++;
+        }
+      });
+
+      setDailyHistory(Array.from(historyMap.entries()).map(([date, data]) => ({
+        date: format(new Date(date), "dd/MM"),
+        ...data
+      })));
+
+      // 3. Processar Appointments e Vendas
+      const rawAppointments = (appointmentsRes.data ?? []) as Appointment[];
       rawAppointments.forEach(app => {
         if (app.status === "venda_realizada" && userStats.has(app.user_id)) {
           userStats.get(app.user_id)!.venda_realizada++;
         }
       });
 
-      rawActivities.forEach(act => {
-        if (userStats.has(act.user_id)) {
-          const stats = userStats.get(act.user_id)!;
-          if (stats[act.action_type] !== undefined) {
-            stats[act.action_type]++;
-          } else {
-            stats[act.action_type] = 1;
+      // 4. Processar Resumo Anual (Bônus Quadro Horizontal)
+      const monthsInterval = eachMonthOfInterval({ start: yearStart, end: yearEnd });
+      const annualMap = new Map<string, AnnualSummary>();
+      
+      monthsInterval.forEach(m => {
+        annualMap.set(format(m, "MMMM"), { month: format(m, "MMM"), leads: 0, vendas: 0, faturamento: 0 });
+      });
+
+      (annualActivitiesRes.data ?? []).forEach(act => {
+        const mKey = format(new Date(act.timestamp), "MMMM");
+        if (annualMap.has(mKey)) annualMap.get(mKey)!.leads++;
+      });
+
+      (annualAppointmentsRes.data ?? []).forEach(app => {
+        const mKey = format(new Date(app.scheduled_date), "MMMM");
+        if (annualMap.has(mKey)) {
+          const entry = annualMap.get(mKey)!;
+          if (app.status === "venda_realizada") {
+            entry.vendas++;
+            entry.faturamento += (Number(app.revenue_received) || 0);
           }
         }
       });
+      setAnnualSummary(Array.from(annualMap.values()));
 
+      // 5. Mock de Origens (Para ser integrado com a tabela origin_id no futuro)
+      setLeadOrigins([
+        { label: "Instagram", value: 43, color: "#E1306C" },
+        { label: "WhatsApp", value: 30, color: "#25D366" },
+        { label: "Indicação", value: 16, color: "#4A90E2" },
+        { label: "Site/Orgânico", value: 11, color: "#F5A623" }
+      ]);
+
+      // Finalização
       const realCounts: ActivityCount[] = [];
       userStats.forEach((stats, userId) => {
         Object.entries(stats).forEach(([action, count]) => {
@@ -163,15 +233,10 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
         });
       });
 
-      const processedGoals = (goalsRes.data ?? []).map((goal: any) => ({
-        ...goal,
-        period_goal: goal.daily_goal * daysInPeriod
-      }));
-
       setActivities(realCounts);
       setAppointments(rawAppointments);
       setProfiles((profilesRes.data ?? []) as Profile[]);
-      setGoals(processedGoals as UserGoal[]);
+      setGoals((goalsRes.data ?? []).map((g: any) => ({ ...g, period_goal: g.daily_goal * daysInPeriod })) as UserGoal[]);
       setTaskTypes((taskTypesRes.data ?? []) as TaskType[]);
 
     } catch (err: any) {
@@ -183,24 +248,13 @@ export function useDashboardData(period: PeriodFilter, customRange?: { start: Da
 
   useEffect(() => {
     fetchData();
-    const actChannel = supabase.channel("activity_changes")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_logs" }, () => fetchData())
-      .subscribe();
-
-    const goalsChannel = supabase.channel("company_goals_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "company_goals" }, () => fetchData())
-      .subscribe();
-
-    const appChannel = supabase.channel("appointment_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => fetchData())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(actChannel);
-      supabase.removeChannel(goalsChannel);
-      supabase.removeChannel(appChannel);
-    };
+    const channels = [
+      supabase.channel("act").on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_logs" }, () => fetchData()).subscribe(),
+      supabase.channel("goals").on("postgres_changes", { event: "*", schema: "public", table: "company_goals" }, () => fetchData()).subscribe(),
+      supabase.channel("apps").on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, () => fetchData()).subscribe()
+    ];
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, [fetchData]);
 
-  return { activities, appointments, profiles, goals, taskTypes, companyGoals, loading, refetch: fetchData };
+  return { activities, appointments, profiles, goals, taskTypes, companyGoals, dailyHistory, annualSummary, leadOrigins, loading, refetch: fetchData };
 }

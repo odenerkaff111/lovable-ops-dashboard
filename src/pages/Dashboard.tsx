@@ -5,70 +5,53 @@ import { PeriodFilter } from "@/components/dashboard/PeriodFilter";
 import { StatCard } from "@/components/dashboard/StatCard";
 import AppointmentCardInteractive from "@/components/dashboard/AppointmentCardInteractive";
 import SalesFunnel from "@/components/dashboard/SalesFunnel";
+import { LeadOriginChart, ProspectingComboChart, AnnualSummaryChart } from "@/components/dashboard/Charts";
 import {
-  Users,
   Target,
   Phone,
   PhoneOff,
   TrendingUp,
-  CalendarCheck,
   LayoutDashboard,
-  MessageSquare
+  DollarSign
 } from "lucide-react";
-import { isToday } from "date-fns";
 import Sidebar from "@/components/layout/Sidebar";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+const ptMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Maio', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
   const [period, setPeriod] = useState<PeriodType>("month");
 
-  // Desestruturando o companyGoals (Metas Globais) que configuramos no hook
-  const { activities, appointments, profiles, goals, taskTypes, companyGoals, loading } = useDashboardData(period);
+  const { activities, appointments, profiles, goals, taskTypes, companyGoals, dailyHistory, annualSummary, leadOrigins, loading } = useDashboardData(period);
 
   const stats = useMemo(() => {
-    // Agora o totalByType pega os dados puros que o novo useDashboardData manda
     const totalByType = (type: string) =>
       activities.filter((a) => a.action_type === type).reduce((sum, a) => sum + a.count, 0);
 
-    // ==========================================
-    // 1. DADOS REAIS DO PERÍODO (Esforço isolado)
-    // ==========================================
     const realLeadsCreated = totalByType("lead_criado");
     const realFirstContact = totalByType("primeiro_contato");
+    const realRespostas = totalByType("respostas");
     const realEngaged = totalByType("lead_engajado");
     const realFollowUp = totalByType("follow_up");
+    const realAbordagem = totalByType("abordagem");
     const realQualificacao = totalByType("qualificacao");
 
-    // ==========================================
-    // 2. ESTADO REAL DO FUNIL E VENDAS
-    // ==========================================
     const totalVenda = appointments.filter(a => a.status === "venda_realizada").length;
     const totalRealizada = appointments.filter(a => a.status !== "pendente").length;
     const totalAgendada = appointments.length;
 
-    // Cálculo de Faturamento Real
     const totalRevenue = appointments
       .filter(a => a.status === "venda_realizada")
       .reduce((sum, a) => sum + (Number(a.revenue_received) || 0), 0);
 
-    // Regra do Funil: A soma sobe em cascata para preencher as etapas visuais
     const totalQualificacaoFunnel = realQualificacao + totalAgendada;
     const totalEngajadoFunnel = realEngaged + totalQualificacaoFunnel;
-    const totalPrimeiroContatoFunnel = realFirstContact + totalEngajadoFunnel;
+    const totalRespostasFunnel = realRespostas + totalEngajadoFunnel;
+    const totalPrimeiroContatoFunnel = realFirstContact + totalRespostasFunnel;
     const totalLeadsFunnel = realLeadsCreated + totalPrimeiroContatoFunnel;
 
-    // ==========================================
-    // 3. CÁLCULO DAS MÉTRICAS DE NEGÓCIO (BUSINESS METRICS)
-    // ==========================================
-
-    const safeCompanyGoals = companyGoals || {
-      revenue_goal: 50000,
-      sales_goal: 4,
-      daily_appointments_goal: 1,
-      daily_conversations_goal: 10
-    };
+    const safeCompanyGoals = companyGoals || { revenue_goal: 50000, sales_goal: 4, daily_appointments_goal: 1, daily_conversations_goal: 10 };
 
     let daysMultiplier = 30;
     if (period === "today") daysMultiplier = 1;
@@ -79,53 +62,42 @@ export default function Dashboard() {
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(val);
 
     const businessMetrics = [
-      {
-        label: "Faturamento",
-        current: formatCurrency(totalRevenue),
-        goal: formatCurrency(safeCompanyGoals.revenue_goal),
-        pct: safeCompanyGoals.revenue_goal > 0 ? Math.round((totalRevenue / safeCompanyGoals.revenue_goal) * 100) : 0,
-        color: "text-emerald-600",
-        bar: "bg-emerald-500"
-      },
-      {
-        label: "Vendas (Mês)",
-        current: totalVenda.toString(),
-        goal: safeCompanyGoals.sales_goal.toString(),
-        pct: safeCompanyGoals.sales_goal > 0 ? Math.round((totalVenda / safeCompanyGoals.sales_goal) * 100) : 0,
-        color: "text-blue-600",
-        bar: "bg-blue-500"
-      },
-      {
-        label: "Agendamentos",
-        current: totalAgendada.toString(),
-        goal: (safeCompanyGoals.daily_appointments_goal * daysMultiplier).toString(),
-        pct: (safeCompanyGoals.daily_appointments_goal * daysMultiplier) > 0 ? Math.round((totalAgendada / (safeCompanyGoals.daily_appointments_goal * daysMultiplier)) * 100) : 0,
-        color: "text-purple-600",
-        bar: "bg-purple-500"
-      },
-      {
-        label: "Conversas (Engajamento)",
-        current: realEngaged.toString(),
-        goal: (safeCompanyGoals.daily_conversations_goal * daysMultiplier).toString(),
-        pct: (safeCompanyGoals.daily_conversations_goal * daysMultiplier) > 0 ? Math.round((realEngaged / (safeCompanyGoals.daily_conversations_goal * daysMultiplier)) * 100) : 0,
-        color: "text-amber-500",
-        bar: "bg-amber-500"
-      }
+      { label: "Faturamento", current: formatCurrency(totalRevenue), goal: formatCurrency(safeCompanyGoals.revenue_goal), pct: safeCompanyGoals.revenue_goal > 0 ? Math.round((totalRevenue / safeCompanyGoals.revenue_goal) * 100) : 0, color: "text-emerald-600", bar: "bg-emerald-500" },
+      { label: "Vendas (Mês)", current: totalVenda.toString(), goal: safeCompanyGoals.sales_goal.toString(), pct: safeCompanyGoals.sales_goal > 0 ? Math.round((totalVenda / safeCompanyGoals.sales_goal) * 100) : 0, color: "text-blue-600", bar: "bg-blue-500" },
+      { label: "Agendamentos", current: totalAgendada.toString(), goal: (safeCompanyGoals.daily_appointments_goal * daysMultiplier).toString(), pct: (safeCompanyGoals.daily_appointments_goal * daysMultiplier) > 0 ? Math.round((totalAgendada / (safeCompanyGoals.daily_appointments_goal * daysMultiplier)) * 100) : 0, color: "text-purple-600", bar: "bg-purple-500" },
+      { label: "Oportunidades", current: realEngaged.toString(), goal: (safeCompanyGoals.daily_conversations_goal * daysMultiplier).toString(), pct: (safeCompanyGoals.daily_conversations_goal * daysMultiplier) > 0 ? Math.round((realEngaged / (safeCompanyGoals.daily_conversations_goal * daysMultiplier)) * 100) : 0, color: "text-amber-500", bar: "bg-amber-500" }
     ];
+
+    const mockInvestimento = 2000;
+    const cpl = realLeadsCreated > 0 ? mockInvestimento / realLeadsCreated : 0;
+    const cpa = totalAgendada > 0 ? mockInvestimento / totalAgendada : 0;
+    const cac = totalVenda > 0 ? mockInvestimento / totalVenda : 0;
+    const ticketMedio = totalVenda > 0 ? totalRevenue / totalVenda : 0;
+
+    const financialMetrics = [
+      { label: "CPL (Custo por Lead)", current: formatCurrency(cpl) },
+      { label: "CPA (Custo p/ Agendar)", current: formatCurrency(cpa) },
+      { label: "CAC (Custo de Aquisição)", current: formatCurrency(cac) },
+      { label: "Ticket Médio (TM)", current: formatCurrency(ticketMedio) }
+    ];
+
+    const taxaAgendamento = realLeadsCreated > 0 ? Math.round((totalAgendada / realLeadsCreated) * 100) : 0;
+    const conversaoCall = totalRealizada > 0 ? Math.round((totalVenda / totalRealizada) * 100) : 0;
+    const conversaoVendaGeral = realLeadsCreated > 0 ? Math.round((totalVenda / realLeadsCreated) * 100) : 0;
 
     return {
       businessMetrics,
-      totalLeadsTrabalhados: totalLeadsFunnel,
-      totalFirstContactReal: realFirstContact,
-      totalEngagedReal: realEngaged,
-      totalAgendado: totalAgendada,
-      todayCallsScheduled: appointments.filter((a) => isToday(new Date(a.scheduled_date))).length,
-      callsDone: totalRealizada,
+      financialMetrics,
+      tentativasConversa: realAbordagem + realFollowUp,
+      conversasGeradas: realRespostas,
+      taxaAgendamento,
+      conversaoCall,
+      conversaoVendaGeral,
       noShowRate: totalRealizada > 0 ? Math.round((appointments.filter(a => a.status === "no_show").length / totalRealizada) * 100) : 0,
-      conversionRate: totalRealizada > 0 ? Math.round((totalVenda / totalRealizada) * 100) : 0,
       funnelData: {
         leads: totalLeadsFunnel,
-        primeiroContato: totalPrimeiroContatoFunnel,
+        contatoFeito: totalPrimeiroContatoFunnel,
+        respostas: totalRespostasFunnel,
         engajada: totalEngajadoFunnel,
         qualificacao: totalQualificacaoFunnel,
         agendada: totalAgendada,
@@ -135,36 +107,36 @@ export default function Dashboard() {
     };
   }, [activities, appointments, goals, taskTypes, companyGoals, period]);
 
-  const userPerformances = useMemo(() => {
-    return profiles.filter(p => p.active === true).map((p) => {
-      const userGoals = goals.filter((g) => g.user_id === p.id);
-      const tasks = userGoals.map((g) => {
-        const tt = taskTypes.find((t) => t.id === g.task_type_id);
-        const act = activities.find((a) => a.user_id === p.id && a.action_type === tt?.name);
-
-        let label = tt?.name || "?";
-        if (label === 'lead_criado') label = 'Criação';
-        if (label === 'primeiro_contato') label = '1º Contato';
-        if (label === 'lead_engajado') label = 'Engajamento';
-        if (label === 'follow_up') label = 'Follow';
-
-        return {
-          label,
-          current: act?.count ?? 0,
-          goal: g.period_goal || g.daily_goal,
-        };
-      }).filter(task => task.goal > 0);
-      return { profile: p, tasks };
-    }).filter(u => u.tasks.length > 0);
-  }, [profiles, goals, taskTypes, activities]);
-
   const profileMap = useMemo(() => {
     const map = new Map<string, string>();
     profiles.forEach((p) => map.set(p.id, p.full_name));
     return map;
   }, [profiles]);
 
-  if (loading) return <div className="flex h-screen items-center justify-center text-slate-500 font-medium bg-slate-50">Sincronizando Comando Central...</div>;
+  const userPerformances = useMemo(() => {
+    return profiles.filter(p => p.active === true).map((p) => {
+      const userGoals = goals.filter((g) => g.user_id === p.id);
+      const tasks = userGoals.map((g) => {
+        const tt = taskTypes.find((t) => t.id === g.task_type_id);
+        const act = activities.find((a) => a.user_id === p.id && a.action_type === tt?.name);
+        let label = tt?.name || "?";
+        if (label === 'lead_criado') label = 'Criação';
+        if (label === 'primeiro_contato') label = '1º Contato';
+        if (label === 'respostas') label = 'Respostas';
+        if (label === 'lead_engajado') label = 'Engajamento';
+        if (label === 'follow_up') label = 'Follow';
+        if (label === 'abordagem') label = 'Abordagem';
+        return { label, current: act?.count ?? 0, goal: g.period_goal || g.daily_goal };
+      }).filter(task => task.goal > 0);
+      return { profile: p, tasks };
+    }).filter(u => u.tasks.length > 0);
+  }, [profiles, goals, taskTypes, activities]);
+
+  const formattedAnnualSummary = useMemo(() => {
+    return annualSummary.map((m, index) => ({ ...m, month: ptMonths[index] || m.month }));
+  }, [annualSummary]);
+
+  if (loading) return <div className="flex h-screen items-center justify-center text-slate-500 font-medium bg-slate-50 italic">Sincronizando Kyra...</div>;
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-800 font-sans">
@@ -184,12 +156,10 @@ export default function Dashboard() {
             <SalesFunnel data={stats.funnelData} />
           </aside>
 
-          <div className="flex-1 space-y-8">
-
-            {/* METAS DO COMERCIAL */}
+          <div className="flex-1 space-y-6">
+            
             <section className="space-y-4">
               <h2 className="text-base font-semibold text-slate-800">Metas do Comercial</h2>
-
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {stats.businessMetrics.map((m) => (
                   <div key={m.label} className="bg-white p-4 rounded-md border border-gray-200 shadow-sm flex flex-col justify-between hover:border-emerald-300 transition-colors">
@@ -209,20 +179,36 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </section>
 
-            {/* VOLUME DE OPERAÇÃO */}
-            <section className="space-y-4">
-              <h2 className="text-base font-semibold text-slate-800">Volume de Operação</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Leads Totais" value={stats.totalLeadsTrabalhados} icon={Users} />
-                <StatCard label="1º Contato" value={stats.totalFirstContactReal} icon={MessageSquare} />
-                <StatCard label="Engajados" value={stats.totalEngagedReal} icon={Target} />
-                <StatCard label="Agendado" value={stats.totalAgendado} icon={CalendarCheck} />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                {stats.financialMetrics.map((m) => (
+                  <div key={m.label} className="bg-white p-4 rounded-md border border-gray-200 shadow-sm flex flex-col justify-center hover:border-blue-300 transition-colors">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{m.label}</span>
+                    <span className="text-lg font-bold text-slate-800">{m.current}</span>
+                  </div>
+                ))}
               </div>
             </section>
 
-            {/* PERFORMANCE DA EQUIPE */}
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 flex flex-col">
+                <ProspectingComboChart data={dailyHistory} />
+              </div>
+              <div className="lg:col-span-1 flex flex-col">
+                <LeadOriginChart data={leadOrigins} />
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <h2 className="text-base font-semibold text-slate-800">Conversão e Calls</h2>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard label="Conversão Venda" value={`${stats.conversaoVendaGeral}%`} icon={DollarSign} subtitle="Leads que viraram Vendas" />
+                <StatCard label="Conversão Call" value={`${stats.conversaoCall}%`} icon={Target} subtitle="Calls que viraram Vendas" />
+                <StatCard label="Taxa Agendamento" value={`${stats.taxaAgendamento}%`} icon={TrendingUp} subtitle="Novos Leads p/ Call" />
+                <StatCard label="Taxa No Show" value={`${stats.noShowRate}%`} icon={PhoneOff} subtitle="Faltas em agendamentos" />
+              </div>
+            </section>
+
             <section className="space-y-4">
               <h2 className="text-base font-semibold text-slate-800">Performance da Equipe</h2>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -255,40 +241,32 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* CONVERSÃO E CALLS */}
-            <section className="space-y-4">
-              <h2 className="text-base font-semibold text-slate-800">Conversão e Calls</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard label="Conversão Venda" value={`${stats.conversionRate}%`} icon={TrendingUp} variant="success" />
-                <StatCard label="Taxa No Show" value={`${stats.noShowRate}%`} icon={PhoneOff} variant={stats.noShowRate > 25 ? "danger" : "default"} />
-                <StatCard label="Calls Hoje" value={stats.todayCallsScheduled} icon={Phone} />
-                <StatCard label="Realizadas" value={stats.callsDone} icon={Phone} variant="success" />
-              </div>
-            </section>
-
-            {/* PRÓXIMAS CALLS AGENDADAS */}
-            <section className="space-y-4 pb-12">
+            <section className="space-y-4 pb-4">
               <h2 className="text-base font-semibold text-slate-800">Próximas Calls</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {appointments.slice(0, 6).map((apt) => (
                   <AppointmentCardInteractive
-                    key={apt.id}
-                    id={apt.id}
-                    leadName={apt.lead_name}
-                    scheduledDate={apt.scheduled_date}
-                    responsibleName={profileMap.get(apt.user_id) || "Pendente"}
-                    status={apt.status}
+                    key={apt.id} id={apt.id} leadName={apt.lead_name} scheduledDate={apt.scheduled_date} responsibleName={profileMap.get(apt.user_id) || "Pendente"} status={apt.status}
                   />
                 ))}
                 {appointments.length === 0 && (
                   <div className="col-span-full bg-white border border-gray-200 rounded-md p-8 text-center">
-                    <p className="text-sm text-slate-500 font-medium">Nenhuma call registrada no período.</p>
+                    {/* FRASE CORRIGIDA AQUI */}
+                    <p className="text-sm text-slate-500 font-medium">Nenhuma call agendada neste período.</p>
                   </div>
                 )}
               </div>
             </section>
-
           </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-6 pb-12">
+          <section className="bg-white rounded-md shadow-sm overflow-hidden mt-4 border border-gray-200 p-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-800 text-center w-full mb-2">
+              Resultado Anual Acumulado
+            </h2>
+            <AnnualSummaryChart data={formattedAnnualSummary} />
+          </section>
         </div>
       </main>
     </div>

@@ -1,5 +1,16 @@
 import React from "react";
-import { ArrowDown, Users, MessageSquare, Target, Search, CalendarCheck, PhoneCall, DollarSign } from "lucide-react";
+import { 
+  ArrowDown, 
+  Users, 
+  MessageSquare, 
+  Target, 
+  Search, 
+  CalendarCheck, 
+  PhoneCall, 
+  DollarSign,
+  MessageCircle,
+  Zap
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FunnelStepProps {
@@ -44,65 +55,19 @@ export default function SalesFunnel({ data }: { data: any }) {
 
   return (
     <div className="flex flex-col gap-0 w-full max-w-[280px] p-5 bg-white border border-gray-200 rounded-md shadow-sm h-fit sticky top-4">
-      <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider">
+      <h3 className="text-sm font-bold text-slate-800 mb-6 uppercase tracking-wider text-center w-full">
         Estatística de Conversão
       </h3>
 
       <div className="space-y-0">
-        <FunnelStep
-          label="Leads"
-          value={data?.leads || 0}
-          icon={Users}
-          color="bg-slate-50 border-slate-200 text-slate-700"
-          conversion={calcConv(data?.primeiroContato, data?.leads)}
-        />
-
-        <FunnelStep
-          label="1º Contato"
-          value={data?.primeiroContato || 0}
-          icon={MessageSquare}
-          color="bg-blue-50/50 border-blue-100 text-blue-700"
-          conversion={calcConv(data?.engajada, data?.primeiroContato)}
-        />
-
-        <FunnelStep
-          label="Engajada"
-          value={data?.engajada || 0}
-          icon={Target}
-          color="bg-indigo-50/50 border-indigo-100 text-indigo-700"
-          conversion={calcConv(data?.qualificacao, data?.engajada)}
-        />
-
-        <FunnelStep
-          label="Qualificação"
-          value={data?.qualificacao || 0}
-          icon={Search}
-          color="bg-violet-50/50 border-violet-100 text-violet-700"
-          conversion={calcConv(data?.agendada, data?.qualificacao)}
-        />
-
-        <FunnelStep
-          label="Agendada"
-          value={data?.agendada || 0}
-          icon={CalendarCheck}
-          color="bg-purple-50/50 border-purple-100 text-purple-700"
-          conversion={calcConv(data?.realizada, data?.agendada)}
-        />
-
-        <FunnelStep
-          label="Realizada"
-          value={data?.realizada || 0}
-          icon={PhoneCall}
-          color="bg-emerald-50/50 border-emerald-100 text-emerald-700"
-          conversion={calcConv(data?.venda, data?.realizada)}
-        />
-
-        <FunnelStep
-          label="Venda"
-          value={data?.venda || 0}
-          icon={DollarSign}
-          color="bg-amber-50/50 border-amber-100 text-amber-700"
-        />
+        <FunnelStep label="Leads Gerados" value={data?.leads || 0} icon={Users} color="bg-slate-50 border-slate-200 text-slate-700" conversion={calcConv(data?.contatoFeito, data?.leads)} />
+        <FunnelStep label="Contato Feito" value={data?.contatoFeito || 0} icon={MessageSquare} color="bg-blue-50/50 border-blue-100 text-blue-700" conversion={calcConv(data?.respostas, data?.contatoFeito)} />
+        <FunnelStep label="Conversas" value={data?.respostas || 0} icon={MessageCircle} color="bg-indigo-50/50 border-indigo-100 text-indigo-700" conversion={calcConv(data?.engajada, data?.respostas)} />
+        <FunnelStep label="Engajados" value={data?.engajada || 0} icon={Zap} color="bg-pink-50/50 border-pink-100 text-pink-700" conversion={calcConv(data?.qualificacao, data?.engajada)} />
+        <FunnelStep label="Qualificação" value={data?.qualificacao || 0} icon={Search} color="bg-violet-50/50 border-violet-100 text-violet-700" conversion={calcConv(data?.agendada, data?.qualificacao)} />
+        <FunnelStep label="Agendados" value={data?.agendada || 0} icon={CalendarCheck} color="bg-purple-50/50 border-purple-100 text-purple-700" conversion={calcConv(data?.realizada, data?.agendada)} />
+        <FunnelStep label="Realizados" value={data?.realizada || 0} icon={PhoneCall} color="bg-emerald-50/50 border-emerald-100 text-emerald-700" conversion={calcConv(data?.venda, data?.realizada)} />
+        <FunnelStep label="Venda" value={data?.venda || 0} icon={DollarSign} color="bg-amber-50/50 border-amber-100 text-amber-700" />
       </div>
     </div>
   );

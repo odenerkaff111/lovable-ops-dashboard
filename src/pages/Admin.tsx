@@ -159,6 +159,7 @@ export default function Admin() {
     if (name === 'lead_criado') return 'Criação';
     if (name === 'lead_engajado') return 'Engajamento';
     if (name === 'follow_up') return 'Follow';
+    if (name === 'abordagem') return 'Abordagem'; // Métrica atualizada conforme solicitado
     return name;
   }
 
@@ -171,7 +172,7 @@ export default function Admin() {
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto p-8 space-y-6">
 
-          {/* FORMULÁRIO DE CRIAÇÃO (SÓ APARECE AO CLICAR NO BOTÃO) */}
+          {/* FORMULÁRIO DE CRIAÇÃO (SÓ APARECE AO CLICAR NO BOTÃO NOVO USUÁRIO) */}
           {showCreateForm && (
             <section className="bg-white p-6 rounded-md border border-blue-200 shadow-sm animate-in fade-in slide-in-from-top-2">
               <div className="flex justify-between items-center mb-4">
@@ -201,7 +202,7 @@ export default function Admin() {
                   </Select>
                 </div>
               </div>
-              <Button onClick={createUser} disabled={creating} className="mt-4 bg-slate-800 hover:bg-slate-700 text-xs h-9 px-8">
+              <Button onClick={createUser} disabled={creating} className="mt-4 bg-slate-800 hover:bg-slate-700 text-xs h-9 px-8 transition-colors">
                 {creating ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : "Confirmar Cadastro"}
               </Button>
             </section>
@@ -210,7 +211,7 @@ export default function Admin() {
           {/* METAS GLOBAIS DA EMPRESA */}
           {companyGoals && (
             <section className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100">
+              <div className="p-4 border-b border-gray-100 bg-white">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Metas Globais da Empresa</h2>
               </div>
               
@@ -219,9 +220,9 @@ export default function Admin() {
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Faturamento (Mês)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-xs">R$</span>
-                    <Input 
+                    <input 
                       type="number" 
-                      className="pl-9 h-10 font-bold text-slate-800"
+                      className="w-full pl-9 pr-3 h-10 font-bold text-slate-800 border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
                       defaultValue={companyGoals.revenue_goal} 
                       onBlur={(e) => handleSaveCompanyGoal('revenue_goal', e.target.value)} 
                     />
@@ -229,29 +230,29 @@ export default function Admin() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Vendas (Mês)</Label>
-                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.sales_goal} onBlur={(e) => handleSaveCompanyGoal('sales_goal', e.target.value)} />
+                  <input type="number" className="w-full h-10 px-3 font-bold text-slate-800 border border-gray-200 rounded-md focus:outline-none focus:border-blue-400" defaultValue={companyGoals.sales_goal} onBlur={(e) => handleSaveCompanyGoal('sales_goal', e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Agendamentos (Dia)</Label>
-                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.daily_appointments_goal} onBlur={(e) => handleSaveCompanyGoal('daily_appointments_goal', e.target.value)} />
+                  <input type="number" className="w-full h-10 px-3 font-bold text-slate-800 border border-gray-200 rounded-md focus:outline-none focus:border-blue-400" defaultValue={companyGoals.daily_appointments_goal} onBlur={(e) => handleSaveCompanyGoal('daily_appointments_goal', e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] uppercase font-bold text-slate-500">Conversas (Dia)</Label>
-                  <Input type="number" className="h-10 font-bold text-slate-800" defaultValue={companyGoals.daily_conversations_goal} onBlur={(e) => handleSaveCompanyGoal('daily_conversations_goal', e.target.value)} />
+                  <input type="number" className="w-full h-10 px-3 font-bold text-slate-800 border border-gray-200 rounded-md focus:outline-none focus:border-blue-400" defaultValue={companyGoals.daily_conversations_goal} onBlur={(e) => handleSaveCompanyGoal('daily_conversations_goal', e.target.value)} />
                 </div>
               </div>
             </section>
           )}
 
-          {/* EQUIPE (MATRIZ INDIVIDUAL) */}
+          {/* EQUIPE */}
           <section className="bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Equipe</h2>
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-white">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 uppercase">Equipe</h2>
               <Button 
                 onClick={() => setShowCreateForm(true)} 
                 variant="outline" 
                 size="sm" 
-                className="h-8 text-[10px] font-bold uppercase gap-2 border-slate-300"
+                className="h-8 text-[10px] font-bold uppercase gap-2 border-slate-300 hover:bg-slate-50 transition-colors"
               >
                 <UserPlus className="w-3 h-3" /> Novo Usuário
               </Button>
@@ -286,9 +287,9 @@ export default function Admin() {
                             return (
                               <div key={tt.id} className="flex flex-col items-center gap-1">
                                 <span className="text-[9px] font-bold text-slate-400 uppercase">{getTaskLabel(tt.name)}</span>
-                                <Input
+                                <input
                                   type="number"
-                                  className="h-8 w-14 text-center text-xs border-gray-200 focus:border-blue-400"
+                                  className="h-8 w-14 text-center text-xs border border-gray-200 rounded-md focus:outline-none focus:border-blue-400"
                                   defaultValue={goal?.daily_goal || ""}
                                   onBlur={(e) => handleSaveGoal(p.id, tt.id, e.target.value)}
                                 />
@@ -298,9 +299,9 @@ export default function Admin() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <Button variant="ghost" size="icon" className="text-slate-300 hover:text-red-500 transition-colors">
+                        <button className="text-slate-300 hover:text-red-500 transition-colors">
                           <Trash2 className="w-4 h-4" />
-                        </Button>
+                        </button>
                       </td>
                     </tr>
                   ))}
